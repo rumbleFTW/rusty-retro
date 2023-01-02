@@ -9,14 +9,17 @@ mod chip8;
 const PIXEL_ON: u32 = 0x31fe65;
 const PIXEL_OFF: u32 = 0x000000;
 
+const FONT_ON: u32 = 0xFFA500;
+const FONT_OFF: u32 = 0x000000;
+
 const WIDTH: usize = 640;
 const HEIGHT: usize = 320;
 
 fn color_from_bit(bit: u8) -> u32 {
     if bit == 0 {
-        PIXEL_OFF
+        FONT_OFF
     } else {
-        PIXEL_ON
+        FONT_ON
     }
 }
 pub struct StatusText {
@@ -98,7 +101,7 @@ fn main () {
     
     let mut window = minifb::Window::new("rusty-retro: Chip8",
                             WIDTH,
-                            HEIGHT * 2,
+                            HEIGHT * 2 - 90,
                             minifb::WindowOptions::default()).unwrap();
 
 
@@ -129,7 +132,7 @@ fn main () {
         
         if Instant::now() - last_display_time > Duration::from_millis(5) {
             
-            let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT * 2];
+            let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT * 2 - 90];
             
             for y in 0..HEIGHT {
                 let y_coord = y / 10;
@@ -148,17 +151,17 @@ fn main () {
     
             status_text.draw(&mut buffer, (20, HEIGHT + 20), &format!("Program counter: {:#X}", c8.cpu.program_counter));
     
-            status_text.draw(&mut buffer, (20, HEIGHT + 50), &format!("Index Register: {:#X}", c8.cpu.i));
+            status_text.draw(&mut buffer, (20, HEIGHT + 50), &format!("Current instruction: {:#X}", c8.cpu.current_instruction));
+
+            status_text.draw(&mut buffer, (20, HEIGHT + 80), &format!("Index Register: {:#X}", c8.cpu.i));
     
-            status_text.draw(&mut buffer, (20, HEIGHT + 80), &format!("Stack pointer: {:#X}", c8.cpu.stack_pointer));
+            status_text.draw(&mut buffer, (20, HEIGHT + 110), &format!("Stack pointer: {:#X}", c8.cpu.stack_pointer));
+            
+            status_text.draw(&mut buffer, (20, HEIGHT + 140), &format!("{:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X}", c8.cpu.registers[0], c8.cpu.registers[1], c8.cpu.registers[2], c8.cpu.registers[3], c8.cpu.registers[4], c8.cpu.registers[5], c8.cpu.registers[6], c8.cpu.registers[7]));
     
-            status_text.draw(&mut buffer, (20, HEIGHT + 110), &format!("CPU registers:"));
+            status_text.draw(&mut buffer, (20, HEIGHT + 170), &format!("{:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X}", c8.cpu.registers[8], c8.cpu.registers[9], c8.cpu.registers[10], c8.cpu.registers[11], c8.cpu.registers[12], c8.cpu.registers[13], c8.cpu.registers[14], c8.cpu.registers[15]));
     
-            status_text.draw(&mut buffer, (20, HEIGHT + 110), &format!("{:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X}", c8.cpu.registers[0], c8.cpu.registers[1], c8.cpu.registers[2], c8.cpu.registers[3], c8.cpu.registers[4], c8.cpu.registers[5], c8.cpu.registers[6], c8.cpu.registers[7]));
-    
-            status_text.draw(&mut buffer, (20, HEIGHT + 140), &format!("{:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X}", c8.cpu.registers[8], c8.cpu.registers[9], c8.cpu.registers[10], c8.cpu.registers[11], c8.cpu.registers[12], c8.cpu.registers[13], c8.cpu.registers[14], c8.cpu.registers[15]));
-    
-            status_text.draw(&mut buffer, (20, HEIGHT + 170), &format!("Key: {:?}", c8.keyboard.pressed_key));
+            status_text.draw(&mut buffer, (20, HEIGHT + 200), &format!("Key: {:?}", c8.keyboard.pressed_key));
     
             window.update_with_buffer(&buffer).unwrap();
             last_display_time = Instant::now();

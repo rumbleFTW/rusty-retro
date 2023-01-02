@@ -1,6 +1,8 @@
 pub struct Cpu {
     /* The virtual cpu required for the chip8 system 
     */
+    //  Currently running instruction
+    pub current_instruction: u16,
 
     // Timers
     pub sound_timer: u8,
@@ -20,6 +22,7 @@ pub struct Cpu {
 impl Cpu {
     pub fn new() -> Cpu {
         return Cpu {    
+                        current_instruction: 0x0000,
                         i: 0x0,
                         program_counter: 0x200,
                         stack_pointer : 255,

@@ -4,12 +4,14 @@ mod cpu;
 mod memory;
 mod display;
 mod keyboard;
+mod speaker;
 
 pub struct Chip8 {
     pub cpu: cpu::Cpu,
     pub memory: memory::Memory,
     pub display: display::Display,
-    pub keyboard: keyboard::Keyboard
+    pub keyboard: keyboard::Keyboard,
+    pub speaker: speaker::Speaker
 }
 
 impl Chip8 {
@@ -19,7 +21,8 @@ impl Chip8 {
             cpu: cpu::Cpu::new(),
             memory: memory::Memory::new(),
             display: display::Display::new(),
-            keyboard: keyboard::Keyboard::new()
+            keyboard: keyboard::Keyboard::new(),
+            speaker: speaker::Speaker::new(),
         }
     }
 
@@ -322,23 +325,11 @@ impl Chip8 {
     }
 
     pub fn emulate_cycle(&mut self) {
-        let opcode = (self.memory.primary_memory[self.cpu.program_counter as usize] as u16) << 8 | self.memory.primary_memory[self.cpu.program_counter as usize + 1] as u16;
-        self.execute(opcode);
+        self.cpu.current_instruction = (self.memory.primary_memory[self.cpu.program_counter as usize] as u16) << 8 | self.memory.primary_memory[self.cpu.program_counter as usize + 1] as u16;
+        self.execute(self.cpu.current_instruction);
         self.cpu.update_timers();
-        // std::thread::sleep(time::Duration::from_millis(1));
+        if self.cpu.sound_timer > 0 {
+            self.speaker.play_sound();
+        }
     }
-
-    pub fn debug(&self) {
-        println!("Program counter: {}, I: {:#x}", self.cpu.program_counter, self.cpu.i);
-        println!("Registers:");
-        for i in 0..16 {
-            print!("{:#x} ", self.cpu.registers[i]);
-        }
-        print!("\n");
-        println!("\nMemory:");
-        for i in 0..4096 {
-            print!("{:#x} ", self.memory.primary_memory[i]);
-        }
-        print!("\n");
-    } 
 }
