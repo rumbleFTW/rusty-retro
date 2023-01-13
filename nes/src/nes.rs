@@ -26,8 +26,8 @@ impl Nes {
                     Bytes: 2
                     Cycles: 2
                 */
-                self.cpu.program_counter += 1;                  // one cpu cycle
-                self.cpu.accumulator = self.memory.primary_memory[self.cpu.program_counter as usize];
+                self.cpu.program_counter += 1;
+                self.cpu.accumulator = self.memory.primary_memory[self.cpu.program_counter as usize];                                           // one cpu cycle
 
                 if self.cpu.accumulator == 0 {
                     self.cpu.status |= 0b0000_0010;
@@ -46,9 +46,112 @@ impl Nes {
                     Bytes: 2
                     Cycles: 3
                 */
-                self.cpu.program_counter += 1;                  // one cpu cycle
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                self.cpu.program_counter += 1;
+                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];                                         // one cpu cycle
                 self.cpu.accumulator = self.memory.primary_memory[zero_page_address as usize];
+                                                                // one cpu cycle
+
+                if self.cpu.accumulator == 0 {
+                    self.cpu.status |= 0b0000_0010;
+                }
+
+                if self.cpu.accumulator & 0b1000_0000 == 1 {
+                    self.cpu.status |= 0b1000_0000;
+                }
+            },
+            0xB5 => {
+                /*  Loads a byte of memory into the accumulator setting the zero and negative   
+                    flags as appropriate.
+                    Opcode: LDA
+                    Address mode: Zero page, X
+                    Alias: LDA_ZPX
+                    Bytes: 2
+                    Cycles: 4
+                */
+                self.cpu.program_counter += 1;
+                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.x);                // two cpu cycle
+                self.cpu.accumulator = self.memory.primary_memory[zero_page_address as usize];
+                                                                // one cpu cycle
+
+                if self.cpu.accumulator == 0 {
+                    self.cpu.status |= 0b0000_0010;
+                }
+
+                if self.cpu.accumulator & 0b1000_0000 == 1 {
+                    self.cpu.status |= 0b1000_0000;
+                }
+            }
+            0xAD => {
+                /*  Loads a byte of memory into the accumulator setting the zero and negative   
+                    flags as appropriate.
+                    Opcode: LDA
+                    Address mode: Absolute
+                    Alias: LDA_ABS
+                    Bytes: 3
+                    Cycles: 4
+                */
+                self.cpu.program_counter += 1;
+                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                                // one cpu cycle
+                self.cpu.program_counter += 1;
+                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                                // one cpu cycle
+                let absolute_address: u16 = (hi as u16) << 8 | lo as u16;
+                self.cpu.accumulator = self.memory.primary_memory[absolute_address as usize];
+                                                                // one cpu cycle
+
+                if self.cpu.accumulator == 0 {
+                    self.cpu.status |= 0b0000_0010;
+                }
+
+                if self.cpu.accumulator & 0b1000_0000 == 1 {
+                    self.cpu.status |= 0b1000_0000;
+                }
+            },
+            0xBD => {
+                /*  Loads a byte of memory into the accumulator setting the zero and negative   
+                    flags as appropriate.
+                    Opcode: LDA
+                    Address mode: Absolute, X
+                    Alias: LDA_ABX
+                    Bytes: 3
+                    Cycles: 4 (+1 if page crossed)
+                */
+                self.cpu.program_counter += 1;
+                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                                // one cpu cycle
+                self.cpu.program_counter += 1;
+                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                                // one cpu cycle
+                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.x as u16);
+                self.cpu.accumulator = self.memory.primary_memory[absolute_address as usize];
+                                                                // one cpu cycle
+
+                if self.cpu.accumulator == 0 {
+                    self.cpu.status |= 0b0000_0010;
+                }
+
+                if self.cpu.accumulator & 0b1000_0000 == 1 {
+                    self.cpu.status |= 0b1000_0000;
+                }
+            },
+            0xB9 => {
+                /*  Loads a byte of memory into the accumulator setting the zero and negative   
+                    flags as appropriate.
+                    Opcode: LDA
+                    Address mode: Absolute, Y
+                    Alias: LDA_ABY
+                    Bytes: 3
+                    Cycles: 4 (+1 if page crossed)
+                */
+                self.cpu.program_counter += 1;
+                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                                // one cpu cycle
+                self.cpu.program_counter += 1;
+                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                                // one cpu cycle
+                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.y as u16);
+                self.cpu.accumulator = self.memory.primary_memory[absolute_address as usize];
                                                                 // one cpu cycle
 
                 if self.cpu.accumulator == 0 {
