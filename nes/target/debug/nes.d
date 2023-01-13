@@ -1,1 +1,0 @@
-/home/rumbleftw/Documents/Codes/rusty-retro/nes/target/debug/nes: /home/rumbleftw/Documents/Codes/rusty-retro/nes/src/main.rs /home/rumbleftw/Documents/Codes/rusty-retro/nes/src/nes/cpu.rs /home/rumbleftw/Documents/Codes/rusty-retro/nes/src/nes/memory.rs /home/rumbleftw/Documents/Codes/rusty-retro/nes/src/nes.rs
