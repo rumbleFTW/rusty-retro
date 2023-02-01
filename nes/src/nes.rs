@@ -13,348 +13,574 @@ impl Nes {
                         memory: memory::Memory::new()
                     }
     }
+// >>>> Flag operations start >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    fn set_carry_flag(&mut self, arg: u8) {
+        if arg & 0x01 == 0x01 {
+            self.cpu.status |= 0b0000_0001;
+        }
+    }
+
+    fn set_zero_flag(&mut self, arg: u8) {
+        if arg == 0 {
+            self.cpu.status |= 0b0000_0010;
+        }
+    }
+
+    fn set_negative_flag(&mut self, arg: u8) {
+        if arg & 0b1000_0000 == 0b1000_0000 {
+            self.cpu.status |= 0b1000_0000;
+        }
+    }
+
+
+// <<<< Flag operations end <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> Addressing modes start >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    fn immediate(&mut self) -> u8 {
+        self.cpu.program_counter += 1;
+        return self.memory.primary_memory[self.cpu.program_counter as usize];
+    }
+
+    fn zero_page(&mut self) -> u8 {
+        self.cpu.program_counter += 1;
+        self.cpu.program_counter += 1;
+        let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+        return self.memory.primary_memory[zero_page_address as usize];
+    }
+
+    fn zero_page_x(&mut self) -> u8 {
+        self.cpu.program_counter += 1;
+        let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.x);
+
+        return self.memory.primary_memory[zero_page_address as usize];
+    }
+
+    fn zero_page_y(&mut self) -> u8 {
+        self.cpu.program_counter += 1;
+        let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.y);                // two cpu cycle
+
+        return self.memory.primary_memory[zero_page_address as usize];
+    }
+
+    fn absolute(&mut self) -> u8 {
+        self.cpu.program_counter += 1;
+        let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                        // one cpu cycle
+        self.cpu.program_counter += 1;
+        let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                        // one cpu cycle
+        let absolute_address: u16 = (hi as u16) << 8 | lo as u16;
+
+        return self.memory.primary_memory[absolute_address as usize];
+    }
+
+    fn absolute_x(&mut self) -> u8 {
+        self.cpu.program_counter += 1;
+        let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                        // one cpu cycle
+        self.cpu.program_counter += 1;
+        let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                        // one cpu cycle
+        let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.x as u16);
+
+        return self.memory.primary_memory[absolute_address as usize];
+    }
+
+    fn absolute_y(&mut self) -> u8 {
+        self.cpu.program_counter += 1;
+        let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                        // one cpu cycle
+        self.cpu.program_counter += 1;
+        let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                        // one cpu cycle
+        let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.y as u16);
+
+        return self.memory.primary_memory[absolute_address as usize];
+    }
+
+    fn indirect(&mut self) -> u8 {
+        self.cpu.program_counter += 1;
+        let mut lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                        // one cpu cycle
+        self.cpu.program_counter += 1;
+        let mut hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                        // one cpu cycle
+        let address: u16 = (hi as u16) << 8 | lo as u16;
+
+        lo = self.memory.primary_memory[address as usize];
+                                                        // one cpu cycle
+
+        hi = self.memory.primary_memory[address as usize + 1];
+                                                        // one cpu cycle
+
+        return ((hi as u16) << 8 | lo as u16 - 1) as u8;
+                                                        // -1 because the pc is incremented outside the switch block
+    }
+
+    fn indexed_indirect(&mut self) -> u8 {
+        self.cpu.program_counter += 1;
+        let indirect_address = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.x);             // one cpu cycle
+
+        let lo: u8 = self.memory.primary_memory[indirect_address as usize];
+        let hi: u8 = self.memory.primary_memory[indirect_address as usize + 1];
+                                                        // two cpu cycle
+
+        let absolute_address: u16 = (hi as u16) << 8 | lo as u16;
+        return self.memory.primary_memory[absolute_address as usize];
+    }
+
+    fn indirect_indexed(&mut self) -> u8 {
+        self.cpu.program_counter += 1;
+        let indirect_address = self.memory.primary_memory[self.cpu.program_counter as usize];                                         // one cpu cycle
+
+        let lo: u8 = self.memory.primary_memory[indirect_address as usize];
+        let hi: u8 = self.memory.primary_memory[indirect_address as usize + 1];
+                                                        // two cpu cycle
+
+        let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.y as u16) ;
+        return self.memory.primary_memory[absolute_address as usize];
+    }
+
+
+// <<<< Addressing modes end <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     pub fn execute(&mut self, instruction: u8) {
         
         match instruction {
 
-// >> DEC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> AND starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x29 => {                                           // Immediate
+                self.cpu.accumulator &= self.immediate();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+            0x25 => {                                           // Zero page
+                self.cpu.accumulator &= self.zero_page();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+            0x35 => {                                           // Zero page, X
+                self.cpu.accumulator &= self.zero_page_x();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+            0x2D => {                                           // Absolute
+                self.cpu.accumulator &= self.absolute();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+            0x3D => {                                           // Absolute, X
+                self.cpu.accumulator &= self.absolute_x();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+            0x39 => {                                           // Absolute, Y
+                self.cpu.accumulator &= self.absolute_y();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+            0x21 => {                                           // (Indirect, X)
+                self.cpu.accumulator &= self.indexed_indirect();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+            0x31 => {                                           // (Indirect), Y
+                self.cpu.accumulator &= self.indirect_indexed();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+
+// <<<< AND ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> ASL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             
-            0xC6 => {
-                /*  Subtracts one from the value held at a specified memory location setting the 
-                    zero 
-                    and negative flags as appropriate.
-                    Opcode: DEC
-                    Address mode: Zero page
-                    Alias: DEC_ZP
-                    Bytes: 2
-                    Cycles: 5
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];                                      // two cpu cycle
-
-                self.memory.primary_memory[zero_page_address as usize] = self.memory.primary_memory[zero_page_address as usize].wrapping_sub(1);       
-                                                                // two cpu cycle
-
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0x0A => {                                           // Accumulator
+                let mut contents: i8 = self.cpu.accumulator as i8;
+                contents <<= 1;
+                self.cpu.accumulator = contents as u8;
+                self.set_carry_flag(self.cpu.accumulator);
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0xD6 => {
-                /*  Subtracts one from the value held at a specified memory location setting the 
-                    zero 
-                    and negative flags as appropriate.
-                    Opcode: DEC
-                    Address mode: Zero page, X
-                    Alias: DEC_ZPX
-                    Bytes: 2
-                    Cycles: 5
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.x);             // two cpu cycle
-
-                self.memory.primary_memory[zero_page_address as usize] = self.memory.primary_memory[zero_page_address as usize].wrapping_sub(1);       
-                                                                // one cpu cycle
-
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0x06 => {                                           // Zero page
+                let memory_location = self.zero_page();
+                let mut contents: i8 = self.memory.primary_memory[memory_location as usize] as i8;
+                contents <<= 1;
+                self.memory.primary_memory[memory_location as usize] = contents as u8;
+                self.set_carry_flag(self.memory.primary_memory[memory_location as usize]);
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize]);
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize]);
             },
-            0xCE => {
-                /*  Subtracts one from the value held at a specified memory location setting the 
-                    zero and negative flags as appropriate.
-                    Opcode: DEC
-                    Address mode: Absolute
-                    Alias: DEC_ABS
-                    Bytes: 2
-                    Cycles: 6
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = (hi as u16) << 8 | lo as u16;
-
-                self.memory.primary_memory[absolute_address as usize] = self.memory.primary_memory[absolute_address as usize].wrapping_sub(1);       
-                                                                // one cpu cycle
-
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0x16 => {                                           // Zero page, X
+                let memory_location = self.zero_page_x();
+                let mut contents: i8 = self.memory.primary_memory[memory_location as usize] as i8;
+                contents <<= 1;
+                self.memory.primary_memory[memory_location as usize] = contents as u8;
+                self.set_carry_flag(self.memory.primary_memory[memory_location as usize]);
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize]);
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize]);
             },
-            0xDE => {
-                /*  Subtracts one from the value held at a specified memory location setting the 
-                    zero and negative flags as appropriate.
-                    Opcode: DEC
-                    Address mode: Absolute, X
-                    Alias: DEC_ABX
-                    Bytes: 2
-                    Cycles: 7
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.x as u16);
+            0x0E => {                                           // Absolute
+                let memory_location = self.absolute();
+                let mut contents: i8 = self.memory.primary_memory[memory_location as usize] as i8;
+                contents <<= 1;
+                self.memory.primary_memory[memory_location as usize] = contents as u8;
+                self.set_carry_flag(self.memory.primary_memory[memory_location as usize]);
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize]);
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize]);
+            },
+            0x1E => {                                           // Absolute, X
+                let memory_location = self.absolute_x();
+                let mut contents: i8 = self.memory.primary_memory[memory_location as usize] as i8;
+                contents <<= 1;
+                self.memory.primary_memory[memory_location as usize] = contents as u8;
+                self.set_carry_flag(self.memory.primary_memory[memory_location as usize]);
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize]);
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize]);
+            },
 
-                self.memory.primary_memory[absolute_address as usize] = self.memory.primary_memory[absolute_address as usize].wrapping_sub(1);       
-                                                                // one cpu cycle
+// <<<< ASL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
+// >>>> BCC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
+            0x90 => {
+                if self.cpu.status & 0b0000_0001 == 0b0000_0000 {
+                    let offset: u16 = self.memory.primary_memory[self.cpu.program_counter as usize + 1] as u16;
+                    self.cpu.program_counter = self.cpu.program_counter.wrapping_add(offset);
+                    self.cpu.program_counter -= 1;              // To cancel out the final incr
                 }
             },
 
-// << DEC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< BCC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
+// >>>> BCS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-// >> DEX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            0xB0 => {
+                if self.cpu.status & 0b0000_0001 == 0b0000_0001 {
+                    let offset: u8 = self.memory.primary_memory[self.cpu.program_counter as usize + 1];
+                    self.cpu.program_counter = self.cpu.program_counter.wrapping_add(offset as u16);
+                    self.cpu.program_counter -= 1;              // To cancel out the final incr
+                }
+            },
+
+// <<<< BCS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> BEQ starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             
-            0xCA => {
-                /*  Subtracts one from the X register setting the zero and negative flags as 
-                    appropriate.
-                    Opcode: DEX
-                    Address mode: Implied
-                    Alias: DEX_IMP
-                    Bytes: 1
-                    Cycles: 2
-                */
-                self.cpu.x = self.cpu.x.wrapping_sub(1);        // one cpu cycle
-
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
+            0xF0 => {
+                if self.cpu.status & 0b0000_0010 == 0b0000_0010 {
+                    let offset: u16 = self.memory.primary_memory[self.cpu.program_counter as usize + 1] as u16;
+                    self.cpu.program_counter = self.cpu.program_counter.wrapping_add(offset);
+                    self.cpu.program_counter -= 1;              // To cancel out the final incr
                 }
             },
 
-// << DEX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< BEQ ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> DEY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> BIT starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< BIT ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            0x88 => {
-                /*  Subtracts one from the Y register setting the zero and negative flags as 
-                    appropriate.
-                    Opcode: DEY
-                    Address mode: Implied
-                    Alias: DEY_IMP
-                    Bytes: 1
-                    Cycles: 2
-                */
-                self.cpu.y = self.cpu.y.wrapping_sub(1);        // one cpu cycle
+// >>>> BMI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-                if self.cpu.y == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.y & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
+            0x30 => {
+                if self.cpu.status & 0b1000_0000 == 0b1000_0000 {
+                    let offset: u16 = self.memory.primary_memory[self.cpu.program_counter as usize + 1] as u16;
+                    self.cpu.program_counter = self.cpu.program_counter.wrapping_add(offset);
+                    self.cpu.program_counter -= 1;              // To cancel out the final incr
                 }
             },
 
-// << DEY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< BMI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> EOR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> BNE starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0xD0 => {
+                if self.cpu.status & 0b0000_0010 == 0b0000_0000 {
+                    let offset: u16 = self.memory.primary_memory[self.cpu.program_counter as usize + 1] as u16;
+                    self.cpu.program_counter = self.cpu.program_counter.wrapping_add(offset);
+                    self.cpu.program_counter -= 1;              // To cancel out the final incr
+                }
+            },
+
+// <<<< BNE ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> BPL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x10 => {
+                if self.cpu.status & 0b1000_0000 == 0b0000_0000 {
+                    let offset: u16 = self.memory.primary_memory[self.cpu.program_counter as usize + 1] as u16;
+                    self.cpu.program_counter = self.cpu.program_counter.wrapping_add(offset);
+                    self.cpu.program_counter -= 1;              // To cancel out the final incr
+                }
+            },
+
+// <<<< BPL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> BRK starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< BRK ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> BVC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x50 => {
+                if self.cpu.status & 0b0100_0000 == 0b0000_0000 {
+                    let offset: u16 = self.memory.primary_memory[self.cpu.program_counter as usize + 1] as u16;
+                    self.cpu.program_counter = self.cpu.program_counter.wrapping_add(offset);
+                    self.cpu.program_counter -= 1;              // To cancel out the final incr
+                }
+            },
+
+// <<<< BVC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> BVS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x70 => {
+                if self.cpu.status & 0b0100_0000 == 0b0100_0000 {
+                    let offset: u16 = self.memory.primary_memory[self.cpu.program_counter as usize + 1] as u16;
+                    self.cpu.program_counter = self.cpu.program_counter.wrapping_add(offset);
+                    self.cpu.program_counter -= 1;              // To cancel out the final incr
+                }
+            },
+
+// <<<< BVS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> CLC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x18 => {
+                self.cpu.status &= 0b1111_1110;
+            },
+
+// <<<< CLC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> CLD starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0xD8 => {
+                self.cpu.status &= 0b1111_0111;
+            },
+
+// <<<< CLD ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> CLI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x58 => {
+                self.cpu.status &= 0b1111_1011;
+            },
+
+// <<<< CLI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> CLV starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0xB8 => {
+                self.cpu.status &= 0b1011_1111;
+            },
+
+// <<<< CLV ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> CMP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0xC9 => {                                           // Immediate
+                let result = self.cpu.accumulator - self.immediate();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
+            },
+            0xC5 => {                                           // Zero page
+                let result = self.cpu.accumulator - self.zero_page();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
+            },
+            0xD5 => {                                           // Zero page, X
+                let result = self.cpu.accumulator - self.zero_page_x();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
+            },
+            0xCD => {                                           // Absolute
+                let result = self.cpu.accumulator - self.absolute();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
+            },
+            0xDD => {                                           // Absolute, X
+                let result = self.cpu.accumulator - self.absolute_x();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
+            },
+            0xD9 => {                                           // Absolute, Y
+                let result = self.cpu.accumulator - self.absolute_y();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
+            },
+            0xC1 => {                                           // (Indirect, X)
+                let result = self.cpu.accumulator - self.indexed_indirect();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
+            },
+            0xD1 => {                                           // (Indirect, X)
+                let result = self.cpu.accumulator - self.indirect_indexed();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
+            },
             
-// << EOR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< CMP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> INC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            
-            0xE6 => {
-                /*  Adds one to the value held at a specified memory location setting the zero 
-                    and negative flags as appropriate.
-                    Opcode: INC
-                    Address mode: Zero page
-                    Alias: INC_ZP
-                    Bytes: 2
-                    Cycles: 5
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];                                      // two cpu cycle
+// >>>> CPX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-                self.memory.primary_memory[zero_page_address as usize] = self.memory.primary_memory[zero_page_address as usize].wrapping_add(1);       
-                                                                // two cpu cycle
-
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xE0 => {                                           // Immediate
+                let result = self.cpu.x - self.immediate();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
             },
-            0xF6 => {
-                /*  Adds one to the value held at a specified memory location setting the zero 
-                    and negative flags as appropriate.
-                    Opcode: INC
-                    Address mode: Zero page, X
-                    Alias: INC_ZPX
-                    Bytes: 2
-                    Cycles: 5
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.x);             // two cpu cycle
-
-                self.memory.primary_memory[zero_page_address as usize] = self.memory.primary_memory[zero_page_address as usize].wrapping_add(1);       
-                                                                // one cpu cycle
-
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xE4 => {                                           // Zero page
+                let result = self.cpu.x - self.zero_page();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
             },
-            0xEE => {
-                /*  Adds one to the value held at a specified memory location setting the zero 
-                    and negative flags as appropriate.
-                    Opcode: INC
-                    Address mode: Absolute
-                    Alias: INC_ABS
-                    Bytes: 2
-                    Cycles: 6
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = (hi as u16) << 8 | lo as u16;
-
-                self.memory.primary_memory[absolute_address as usize] = self.memory.primary_memory[absolute_address as usize].wrapping_add(1);       
-                                                                // one cpu cycle
-
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
-            },
-            0xFE => {
-                /*  Adds one to the value held at a specified memory location setting the zero 
-                    and negative flags as appropriate.
-                    Opcode: INC
-                    Address mode: Absolute, X
-                    Alias: INC_ABX
-                    Bytes: 2
-                    Cycles: 7
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.x as u16);
-
-                self.memory.primary_memory[absolute_address as usize] = self.memory.primary_memory[absolute_address as usize].wrapping_add(1);       
-                                                                // one cpu cycle
-
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xEC => {                                           // Absolute
+                let result = self.cpu.x - self.absolute();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
             },
 
-// << INC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< CPX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> INX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            
-            0xE8 => {
-                /*  Adds one to the X register setting the zero and negative flags as appropriate.
-                    Opcode: INX
-                    Address mode: Implied
-                    Alias: INX_IMP
-                    Bytes: 1
-                    Cycles: 2
-                */
-                self.cpu.x = self.cpu.x.wrapping_add(1);        // one cpu cycle
+// >>>> CPY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xC0 => {                                           // Immediate
+                let result = self.cpu.y - self.immediate();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
+            },
+            0xC4 => {                                           // Zero page
+                let result = self.cpu.y - self.zero_page();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
+            },
+            0xCC => {                                           // Absolute
+                let result = self.cpu.y - self.absolute();
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
             },
 
-// << INX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< CPY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> INY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-           
-            0xC8 => {
-                /*  Adds one to the Y register setting the zero and negative flags as appropriate.
-                    Opcode: INY
-                    Address mode: Implied
-                    Alias: INY_IMP
-                    Bytes: 1
-                    Cycles: 2
-                */
-                self.cpu.y = self.cpu.y.wrapping_add(1);        // one cpu cycle
+// >>>> DEC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-                if self.cpu.y == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.y & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xC6 => {                                           // Zero page
+                let memory_location = self.zero_page();
+                self.memory.primary_memory[memory_location as usize]  -= 1;
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
+            },
+            0xD6 => {                                           // Zero page, X
+                let memory_location = self.zero_page_x();
+                self.memory.primary_memory[memory_location as usize]  -= 1;
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
+            },
+            0xCE => {                                           // Absolute
+                let memory_location = self.absolute();
+                self.memory.primary_memory[memory_location as usize]  -= 1;
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
+            },
+            0xDE => {                                           //Absolute, X
+                let memory_location = self.absolute_x();
+                self.memory.primary_memory[memory_location as usize]  -= 1;
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
 
-// << INY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< DEC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> JMP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            
-            0x4C => {
-                /*  Sets the program counter to the address specified by the operand.
-                    Opcode: JMP
-                    Address mode: Absolute
-                    Alias: JMP_ABS
-                    Bytes: 3
-                    Cycles: 3
-                */
+// >>>> DEX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0xCA => {                                           // Implied
+                self.cpu.x -= 1;
+                self.set_zero_flag(self.cpu.x);
+                self.set_negative_flag(self.cpu.x);
+            },
+
+// <<<< DEX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> DEY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x88 => {                                           // Implied
+                self.cpu.y -= 1;
+                self.set_zero_flag(self.cpu.y);
+                self.set_negative_flag(self.cpu.y);
+            },
+
+// <<<< DEY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> EOR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< EOR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> INC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0xE6 => {                                           // Zero page
+                let memory_location = self.zero_page();
+                self.memory.primary_memory[memory_location as usize]  += 1;
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
+            },
+            0xF6 => {                                           // Zero page, X
+                let memory_location = self.zero_page_x();
+                self.memory.primary_memory[memory_location as usize]  += 1;
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
+            },
+            0xEE => {                                           // Absolute
+                let memory_location = self.absolute();
+                self.memory.primary_memory[memory_location as usize]  += 1;
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
+            },
+            0xFE => {                                           //Absolute, X
+                let memory_location = self.absolute_x();
+                self.memory.primary_memory[memory_location as usize]  += 1;
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
+            },
+
+// <<<< INC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> INX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0xE8 => {                                           // Implied
+                self.cpu.x += 1;
+                self.set_zero_flag(self.cpu.x);
+                self.set_negative_flag(self.cpu.x);
+            },
+
+// <<<< INX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> INY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0xC8 => {                                           // Implied
+                self.cpu.y += 1;
+                self.set_zero_flag(self.cpu.y);
+                self.set_negative_flag(self.cpu.y);
+            },
+
+// <<<< INY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> JMP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x4C => {                                           // Absolute
                 self.cpu.program_counter += 1;
                 let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
                                                                 // one cpu cycle
@@ -363,16 +589,8 @@ impl Nes {
                                                                 // one cpu cycle
 
                 self.cpu.program_counter = (hi as u16) << 8 | lo as u16;
-
             },
-            0x6C => {
-                /*  Sets the program counter to the address specified by the operand.
-                    Opcode: JMP
-                    Address mode: Indirect
-                    Alias: JMP_IND
-                    Bytes: 3
-                    Cycles: 5
-                */
+            0x6C => {                                           // Indirect
                 self.cpu.program_counter += 1;
                 let mut lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
                                                                 // one cpu cycle
@@ -388,22 +606,14 @@ impl Nes {
                                                                 // one cpu cycle
 
                 self.cpu.program_counter = (hi as u16) << 8 | lo as u16 - 1;
-                                                                // -1 because the pc is incremented outside the switch block
-            },
+                                                                // To cancel out the final incr
+            }
 
-// << JMP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< JMP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> JSR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            
-            0x20 => {
-                /*  The JSR instruction pushes the address (minus one) of the return point on to 
-                    the stack and then sets the program counter to the target memory address.
-                    Opcode: JSR
-                    Address mode: Absolute
-                    Alias: JSR_ABS
-                    Bytes: 3
-                    Cycles: 6
-                */
+// >>>> JSR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x20 => {                                           // Absolute
                 self.cpu.program_counter += 1;
                 let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
                                                                 // one cpu cycle
@@ -422,920 +632,340 @@ impl Nes {
                 self.cpu.program_counter = (hi as u16) << 8 | lo as u16;
             },
 
-// << JSR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< JSR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> LDA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> LDA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-            0xA9 => {
-                /*  Loads a byte of memory into the accumulator setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDA
-                    Address mode: Immediate
-                    Alias: LDA_IM
-                    Bytes: 2
-                    Cycles: 2
-                */
-                self.cpu.program_counter += 1;
-                self.cpu.accumulator = self.memory.primary_memory[self.cpu.program_counter as usize];                                         // one cpu cycle
-
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xA9 => {                                           // Immediate
+                self.cpu.accumulator = self.immediate();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0xA5 => {
-                /*  Loads a byte of memory into the accumulator setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDA
-                    Address mode: Zero page
-                    Alias: LDA_ZP
-                    Bytes: 2
-                    Cycles: 3
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];                                         // one cpu cycle
-                self.cpu.accumulator = self.memory.primary_memory[zero_page_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xA5 => {                                           // Zero page
+                self.cpu.accumulator = self.zero_page();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0xB5 => {
-                /*  Loads a byte of memory into the accumulator setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDA
-                    Address mode: Zero page, X
-                    Alias: LDA_ZPX
-                    Bytes: 2
-                    Cycles: 4
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.x);             // two cpu cycle
-                self.cpu.accumulator = self.memory.primary_memory[zero_page_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xB5 => {                                           // Zero page, X
+                self.cpu.accumulator = self.zero_page_x();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0xAD => {
-                /*  Loads a byte of memory into the accumulator setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDA
-                    Address mode: Absolute
-                    Alias: LDA_ABS
-                    Bytes: 3
-                    Cycles: 4
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = (hi as u16) << 8 | lo as u16;
-                self.cpu.accumulator = self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xAD => {                                           // Absolute
+                self.cpu.accumulator = self.absolute();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0xBD => {
-                /*  Loads a byte of memory into the accumulator setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDA
-                    Address mode: Absolute, X
-                    Alias: LDA_ABX
-                    Bytes: 3
-                    Cycles: 4 (+1 if page crossed)
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.x as u16);
-                self.cpu.accumulator = self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xBD => {                                           // Absolute, X
+                self.cpu.accumulator = self.absolute_x();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0xB9 => {
-                /*  Loads a byte of memory into the accumulator setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDA
-                    Address mode: Absolute, Y
-                    Alias: LDA_ABY
-                    Bytes: 3
-                    Cycles: 4 (+1 if page crossed)
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.y as u16);
-                self.cpu.accumulator = self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xB9 => {                                           // Absolute, Y
+                self.cpu.accumulator = self.absolute_y();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0xA1 => {
-                /*  Loads a byte of memory into the accumulator setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDA
-                    Address mode: (Indirect, X)
-                    Alias: LDA_INX
-                    Bytes: 2
-                    Cycles: 6
-                */
-                self.cpu.program_counter += 1;
-                let indirect_address = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.x);             // one cpu cycle
-
-                let lo: u8 = self.memory.primary_memory[indirect_address as usize];
-                let hi: u8 = self.memory.primary_memory[indirect_address as usize + 1];
-                                                                // two cpu cycle
-
-                let absolute_address: u16 = (hi as u16) << 8 | lo as u16;
-                self.cpu.accumulator = self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xA1 => {                                           // (Indirect, X)
+                self.cpu.accumulator = self.indexed_indirect();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0xB1 => {
-                /*  Loads a byte of memory into the accumulator setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDA
-                    Address mode: (Indirect), Y
-                    Alias: LDA_INY
-                    Bytes: 2
-                    Cycles: 5 (+1 if page crossed)
-                */
-                self.cpu.program_counter += 1;
-                let indirect_address = self.memory.primary_memory[self.cpu.program_counter as usize];                                      // one cpu cycle
-
-                let lo: u8 = self.memory.primary_memory[indirect_address as usize];
-                let hi: u8 = self.memory.primary_memory[indirect_address as usize + 1];
-                                                                // two cpu cycle
-
-                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.y as u16) ;
-                self.cpu.accumulator = self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xB1 => {                                           // (Indirect), Y
+                self.cpu.accumulator = self.indirect_indexed();
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
 
-// << LDA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< LDA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> LDX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            
-            0xA2 => {
-                /*  Loads a byte of memory into the X register setting the zero and negative flags 
-                    as appropriate.
-                    Opcode: LDX
-                    Address mode: Immediate
-                    Alias: LDX_IM
-                    Bytes: 2
-                    Cycles: 2
-                */
-                self.cpu.program_counter += 1;
-                self.cpu.x = self.memory.primary_memory[self.cpu.program_counter as usize];                                         // one cpu cycle
+// >>>> LDX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {    // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xA2 => {                                           // Immediate
+                self.cpu.x = self.immediate();
+                self.set_zero_flag(self.cpu.x);
+                self.set_negative_flag(self.cpu.x);
             },
-            0xA6 => {
-                /*  Loads a byte of memory into the X register setting the zero and negative flags 
-                    as appropriate.
-                    Opcode: LDX
-                    Address mode: Zero page
-                    Alias: LDX_ZP
-                    Bytes: 2
-                    Cycles: 3
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];                                         // one cpu cycle
-                self.cpu.x = self.memory.primary_memory[zero_page_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {    // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xA6 => {                                           // Zero page
+                self.cpu.x = self.zero_page();
+                self.set_zero_flag(self.cpu.x);
+                self.set_negative_flag(self.cpu.x);
             },
-            0xB6 => {
-                /*  Loads a byte of memory into the X register setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDX
-                    Address mode: Zero page, Y
-                    Alias: LDX_ZPY
-                    Bytes: 2
-                    Cycles: 4
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.y);                // two cpu cycle
-                self.cpu.x = self.memory.primary_memory[zero_page_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {    // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xB6 => {                                           // Zero page, Y
+                self.cpu.x = self.zero_page_y();
+                self.set_zero_flag(self.cpu.x);
+                self.set_negative_flag(self.cpu.x);
             },
-            0xAE => {
-                /*  Loads a byte of memory into the X register setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDX
-                    Address mode: Absolute
-                    Alias: LDX_ABS
-                    Bytes: 3
-                    Cycles: 4
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = (hi as u16) << 8 | lo as u16;
-                self.cpu.x = self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {    // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xAE => {                                           // Absolute
+                self.cpu.x = self.absolute();
+                self.set_zero_flag(self.cpu.x);
+                self.set_negative_flag(self.cpu.x);
             },
-            0xBE => {
-                /*  Loads a byte of memory into the X register setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDX
-                    Address mode: Absolute, Y
-                    Alias: LDX_ABY
-                    Bytes: 3
-                    Cycles: 4 (+1 if page crossed)
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.y as u16);
-                self.cpu.x = self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.x == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.x & 0b1000_0000 == 0b1000_0000 {    // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xBE => {                                           // Absolute, Y
+                self.cpu.x = self.absolute_y();
+                self.set_zero_flag(self.cpu.x);
+                self.set_negative_flag(self.cpu.x);
             },
 
-// << LDX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< LDX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> LDY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            
-            0xA0 => {
-                /*  Loads a byte of memory into the Y register setting the zero and negative flags 
-                    as appropriate.
-                    Opcode: LDY
-                    Address mode: Immediate
-                    Alias: LDY_IM
-                    Bytes: 2
-                    Cycles: 2
-                */
-                self.cpu.program_counter += 1;
-                self.cpu.y = self.memory.primary_memory[self.cpu.program_counter as usize];                                         // one cpu cycle
+// >>>> LDY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-                if self.cpu.y == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.y & 0b1000_0000 == 0b1000_0000 {    // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xA0 => {                                           // Immediate
+                self.cpu.y = self.immediate();
+                self.set_zero_flag(self.cpu.y);
+                self.set_negative_flag(self.cpu.y);
             },
-            0xA4 => {
-                /*  Loads a byte of memory into the Y register setting the zero and negative flags 
-                    as appropriate.
-                    Opcode: LDY
-                    Address mode: Zero page
-                    Alias: LDY_ZP
-                    Bytes: 2
-                    Cycles: 3
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];                                         // one cpu cycle
-                self.cpu.y = self.memory.primary_memory[zero_page_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.y == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.y & 0b1000_0000 == 0b1000_0000 {    // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xA4 => {                                           // Zero page
+                self.cpu.y = self.zero_page();
+                self.set_zero_flag(self.cpu.y);
+                self.set_negative_flag(self.cpu.y);
             },
-            0xB4 => {
-                /*  Loads a byte of memory into the Y register setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDY
-                    Address mode: Zero page, X
-                    Alias: LDY_ZPX
-                    Bytes: 2
-                    Cycles: 4
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.x);                // two cpu cycle
-                self.cpu.y = self.memory.primary_memory[zero_page_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.y == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.y & 0b1000_0000 == 0b1000_0000 {    // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xB4 => {                                           // Zero page, X
+                self.cpu.y = self.zero_page_x();
+                self.set_zero_flag(self.cpu.y);
+                self.set_negative_flag(self.cpu.y);
             },
-            0xAC => {
-                /*  Loads a byte of memory into the Y register setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDY
-                    Address mode: Absolute
-                    Alias: LDY_ABS
-                    Bytes: 3
-                    Cycles: 4
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = (hi as u16) << 8 | lo as u16;
-                self.cpu.y = self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.y == 0 {                            // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.y & 0b1000_0000 == 0b1000_0000 {    // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xAC => {                                           // Absolute
+                self.cpu.y = self.absolute();
+                self.set_zero_flag(self.cpu.y);
+                self.set_negative_flag(self.cpu.y);
             },
-            0xBC => {
-                /*  Loads a byte of memory into the Y register setting the zero and negative   
-                    flags as appropriate.
-                    Opcode: LDY
-                    Address mode: Absolute, X
-                    Alias: LDY_ABX
-                    Bytes: 3
-                    Cycles: 4 (+1 if page crossed)
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.x as u16);
-                self.cpu.y = self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.y == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.y & 0b1000_0000 == 0b1000_0000 {    // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0xBC => {                                           // Absolute, X
+                self.cpu.y = self.absolute_x();
+                self.set_zero_flag(self.cpu.y);
+                self.set_negative_flag(self.cpu.y);
             },
 
-// << LDY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< LDY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> LSR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> LSR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-            0x4A => {
-                /*  Each of the bits in A or M is shift one place to the right. The bit that was 
-                    in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
-                    Opcode: LSR
-                    Address mode: Accumulator
-                    Alias: LSR_ACC
-                    Bytes: 1
-                    Cycles: 2
-                */
-                if self.cpu.accumulator & 0x01 == 0x01 {        // Setting the carry flag
-                    self.cpu.status |= 0b0000_0001;
-                }
-
+            0x4A => {                                           // Accumulator
+                self.set_carry_flag(self.cpu.accumulator);
                 self.cpu.accumulator = self.cpu.accumulator >> 1;
-
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0x46 => {
-                /*  Each of the bits in A or M is shift one place to the right. The bit that was 
-                    in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
-                    Opcode: LSR
-                    Address mode: Zero page
-                    Alias: LSR_ZP
-                    Bytes: 2
-                    Cycles: 5
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-
-                if self.memory.primary_memory[zero_page_address as usize] & 0x01 == 0x01 {        // Setting the carry flag
-                    self.cpu.status |= 0b0000_0001;
-                }
-
-                self.memory.primary_memory[zero_page_address as usize] = self.memory.primary_memory[zero_page_address as usize] >> 1;
-
-                if self.memory.primary_memory[zero_page_address as usize] == 0 {                                               // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.memory.primary_memory[zero_page_address as usize] & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0x46 => {                                           // Zero page
+                let memory_location = self.zero_page();
+                self.set_carry_flag(self.memory.primary_memory[memory_location as usize] );
+                self.memory.primary_memory[memory_location as usize]  >>= 1;
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
-            0x56 => {
-                /*  Each of the bits in A or M is shift one place to the right. The bit that was 
-                    in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
-                    Opcode: LSR
-                    Address mode: Zero page, X
-                    Alias: LSR_ZPX
-                    Bytes: 2
-                    Cycles: 6
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.x);
-
-                if self.memory.primary_memory[zero_page_address as usize] & 0x01 == 0x01 {        // Setting the carry flag
-                    self.cpu.status |= 0b0000_0001;
-                }
-
-                self.memory.primary_memory[zero_page_address as usize] = self.memory.primary_memory[zero_page_address as usize] >> 1;
-
-                if self.memory.primary_memory[zero_page_address as usize] == 0 {                                               // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.memory.primary_memory[zero_page_address as usize] & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0x56 => {                                           // Zero page, X
+                let memory_location = self.zero_page_x();
+                self.set_carry_flag(self.memory.primary_memory[memory_location as usize] );
+                self.memory.primary_memory[memory_location as usize]  >>= 1;
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
-            0x4E => {
-                /*  Each of the bits in A or M is shift one place to the right. The bit that was 
-                    in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
-                    Opcode: LSR
-                    Address mode: Absolute
-                    Alias: LSR_ABS
-                    Bytes: 3
-                    Cycles: 6
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.x as u16);
-
-                if self.memory.primary_memory[absolute_address as usize] & 0x01 == 0x01 {                                              // Setting the carry flag
-                    self.cpu.status |= 0b0000_0001;
-                }
-
-                self.memory.primary_memory[absolute_address as usize] = self.memory.primary_memory[absolute_address as usize] >> 1;
-
-                if self.memory.primary_memory[absolute_address as usize] == 0 {                                               // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.memory.primary_memory[absolute_address as usize] & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0x4E => {                                           // Absolute
+                let memory_location = self.absolute();
+                self.set_carry_flag(self.memory.primary_memory[memory_location as usize] );
+                self.memory.primary_memory[memory_location as usize]  >>= 1;
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
-            0x5E => {
-                /*  Each of the bits in A or M is shift one place to the right. The bit that was 
-                    in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
-                    Opcode: LSR
-                    Address mode: Absolute, X
-                    Alias: LSR_ABX
-                    Bytes: 3
-                    Cycles: 7
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.x as u16).wrapping_add(self.cpu.x as u16);
-
-                if self.memory.primary_memory[absolute_address as usize] & 0x01 == 0x01 {                                              // Setting the carry flag
-                    self.cpu.status |= 0b0000_0001;
-                }
-
-                self.memory.primary_memory[absolute_address as usize] = self.memory.primary_memory[absolute_address as usize] >> 1;
-
-                if self.memory.primary_memory[absolute_address as usize] == 0 {                                               // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.memory.primary_memory[absolute_address as usize] & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0x5E => {                                           // Absolute, X
+                let memory_location = self.absolute_x();
+                self.set_carry_flag(self.memory.primary_memory[memory_location as usize] );
+                self.memory.primary_memory[memory_location as usize]  >>= 1;
+                self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
+                self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
 
-// << LSR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< LSR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> NOP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> NOP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xEA => {
-                /*  The NOP instruction causes no changes to the processor other than the normal 
-                    incrementing of the program counter to the next instruction.
-                    Opcode: NOP
-                    Address mode: Implied
-                    Alias: NOP_IMP
-                    Bytes: 1
-                    Cycles: 2
-                */
+                /* No operation */                              // Implied
             },
 
-// << NOP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< NOP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> ORA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> ORA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-            0x09 => {
-                /*  An inclusive OR is performed, bit by bit, on the accumulator contents using 
-                    the contents of a byte of memory.
-                    Opcode: ORA
-                    Address mode: Immediate
-                    Alias: ORA_IMM
-                    Bytes: 2
-                    Cycles: 2
-                */
-                self.cpu.program_counter += 1;
-                self.cpu.accumulator |= self.memory.primary_memory[self.cpu.program_counter as usize];                                         // one cpu cycle
-
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+            0x09 => {                                           // Immediate
+                self.cpu.accumulator  |= self.memory.primary_memory[self.immediate() as usize];
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0x05 => {
-                /*  An inclusive OR is performed, bit by bit, on the accumulator contents using 
-                    the contents of a byte of memory.
-                    Opcode: ORA
-                    Address mode: Zero page
-                    Alias: ORA_ZP
-                    Bytes: 2
-                    Cycles: 3
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];                                         // one cpu cycle
-                self.cpu.accumulator |= self.memory.primary_memory[zero_page_address as usize];                                         // one cpu cycle
+            0x05 => {                                           // Zero page
 
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+                self.cpu.accumulator  |= self.memory.primary_memory[self.zero_page() as usize];
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0x15 => {
-                /*  An inclusive OR is performed, bit by bit, on the accumulator contents using 
-                    the contents of a byte of memory.
-                    Opcode: ORA
-                    Address mode: Zero page, X
-                    Alias: ORA_ZPX
-                    Bytes: 2
-                    Cycles: 4
-                */
-                self.cpu.program_counter += 1;
-                let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.x);                // two cpu cycle
-                self.cpu.accumulator |= self.memory.primary_memory[zero_page_address as usize];
-                                                                // one cpu cycle
+            0x15 => {                                           // Zero page, X
 
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+                self.cpu.accumulator  |= self.memory.primary_memory[self.zero_page_x() as usize];
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0x0D => {
-                /*  An inclusive OR is performed, bit by bit, on the accumulator contents using 
-                    the contents of a byte of memory.
-                    Opcode: ORA
-                    Address mode: Absolute
-                    Alias: ORA_ABS
-                    Bytes: 3
-                    Cycles: 4
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = (hi as u16) << 8 | lo as u16;
-                self.cpu.accumulator |= self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
+            0x0D => {                                           // Absolute
 
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+                self.cpu.accumulator  |= self.memory.primary_memory[self.absolute() as usize];
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0x1D => {
-                /*  An inclusive OR is performed, bit by bit, on the accumulator contents using 
-                    the contents of a byte of memory.
-                    Opcode: ORA
-                    Address mode: Absolute, X
-                    Alias: ORA_ABX
-                    Bytes: 3
-                    Cycles: 4 (+1 if page crossed)
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.x as u16);
-                self.cpu.accumulator |= self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
+            0x1D => {                                           // Absolute, X
 
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+                self.cpu.accumulator  |= self.memory.primary_memory[self.absolute_x() as usize];
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0x19 => {
-                /*  An inclusive OR is performed, bit by bit, on the accumulator contents using 
-                    the contents of a byte of memory.
-                    Opcode: ORA
-                    Address mode: Absolute, Y
-                    Alias: ORA_ABY
-                    Bytes: 3
-                    Cycles: 4 (+1 if page crossed)
-                */
-                self.cpu.program_counter += 1;
-                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                                                                // one cpu cycle
-                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.y as u16);
-                self.cpu.accumulator |= self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
+            0x19 => {                                           // Absolute, Y
 
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+                self.cpu.accumulator  |= self.memory.primary_memory[self.absolute_y() as usize];
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0x01 => {
-                /*  An inclusive OR is performed, bit by bit, on the accumulator contents using 
-                    the contents of a byte of memory.
-                    Opcode: ORA
-                    Address mode: (Indirect, X)
-                    Alias: ORA_INX
-                    Bytes: 2
-                    Cycles: 6
-                */
-                self.cpu.program_counter += 1;
-                let indirect_address = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.x);             // one cpu cycle
+            0x01 => {                                           // (Indirect, X)
 
-                let lo: u8 = self.memory.primary_memory[indirect_address as usize];
-                let hi: u8 = self.memory.primary_memory[indirect_address as usize + 1];
-                                                                // two cpu cycle
-
-                let absolute_address: u16 = (hi as u16) << 8 | lo as u16;
-                self.cpu.accumulator |= self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+                self.cpu.accumulator  |= self.memory.primary_memory[self.indexed_indirect() as usize];
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
-            0x11 => {
-                /*  An inclusive OR is performed, bit by bit, on the accumulator contents using 
-                    the contents of a byte of memory.
-                    Opcode: ORA
-                    Address mode: (Indirect), Y
-                    Alias: ORA_INY
-                    Bytes: 2
-                    Cycles: 5 (+1 if page crossed)
-                */
-                self.cpu.program_counter += 1;
-                let indirect_address = self.memory.primary_memory[self.cpu.program_counter as usize];                                      // one cpu cycle
+            0x11 => {                                           // (Indirect), Y
 
-                let lo: u8 = self.memory.primary_memory[indirect_address as usize];
-                let hi: u8 = self.memory.primary_memory[indirect_address as usize + 1];
-                                                                // two cpu cycle
-
-                let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.y as u16) ;
-                self.cpu.accumulator |= self.memory.primary_memory[absolute_address as usize];
-                                                                // one cpu cycle
-
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
-
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+                self.cpu.accumulator  |= self.memory.primary_memory[self.indirect_indexed() as usize];
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
             },
 
-// << ORA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< ORA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> PHA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> PHA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-            0x48 => {
-                /*  Pushes a copy of the accumulator on to the stack.
-                    Opcode: PHA
-                    Address mode: Implied
-                    Alias: PHA_IMP
-                    Bytes: 1
-                    Cycles: 3
-                */
-                self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize] = self.cpu.accumulator;                                   // two cpu cycle
+            0x48 => {                                           // Implied
+                self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize] = self.cpu.accumulator;                                    // two cpu cycle
                 self.cpu.stack_pointer -= 1;
             },
 
-// << PHA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< PHA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> PHP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> PHP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-            0x08 => {
-                /*  Pushes a copy of the status flags on to the stack.
-                    Opcode: PHP
-                    Address mode: Implied
-                    Alias: PHP_IMP
-                    Bytes: 1
-                    Cycles: 3
-                */
-                self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize] = self.cpu.status;                                        // two cpu cycle
+            0x08 => {                                           // Implied
+                self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize] = self.cpu.status;                                         // two cpu cycle
                 self.cpu.stack_pointer -= 1;
             },
 
-// << PHP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< PHP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> PLA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> PLA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-            0x68 => {
-                /*  Pulls an 8 bit value from the stack and into the accumulator. The zero and 
-                    negative flags are set as appropriate.
-                    Opcode: PLA
-                    Address mode: Implied
-                    Alias: PLA_IMP
-                    Bytes: 1
-                    Cycles: 4
-                */
+            0x68 => {                                           // Implied
                 self.cpu.stack_pointer += 1;
-                self.cpu.accumulator = self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize];                                      // two cpu cycle
+                self.cpu.accumulator = self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize];
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            }
 
-                if self.cpu.accumulator == 0 {                  // Setting the zero flag
-                    self.cpu.status |= 0b0000_0010;
-                }
+// <<<< PLA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-                if self.cpu.accumulator & 0b1000_0000 == 0b1000_0000 {
-                                                                // Setting the negative flag
-                    self.cpu.status |= 0b1000_0000;
-                }
+// >>>> PLP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x28 => {                                           // Implied
+                self.cpu.stack_pointer += 1;
+                self.cpu.status = self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize]; 
             },
 
-// << PLA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< PLP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> PLP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> ROL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< ROL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            0x28 => {
-                /*  Pulls an 8 bit value from the stack and into the processor flags. The flags
-                    will take on new states as determined by the value pulled.
-                    Opcode: PLP
-                    Address mode: Implied
-                    Alias: PLP_IMP
-                    Bytes: 1
-                    Cycles: 4
-                */
-                self.cpu.stack_pointer += 1;
-                self.cpu.status = self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize];                                         // two cpu cycle
+// >>>> ROR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< ROR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> RTI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< RTI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> RTS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< RTS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> SBC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< SBC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> SEC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< SEC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> SED starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< SED ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> SEI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< SEI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> STA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< STA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> STX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< STX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> STY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< STY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> TAX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0xAA => {                                           // Implied
+                self.cpu.x = self.cpu.accumulator;
+                self.set_zero_flag(self.cpu.x);
+                self.set_negative_flag(self.cpu.x);
             },
 
-// << PLP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< TAX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >> INS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// << INS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// >>>> TAY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0xA8 => {                                           // Implied
+                self.cpu.y = self.cpu.accumulator;
+                self.set_zero_flag(self.cpu.y);
+                self.set_negative_flag(self.cpu.y);
+            },
+
+// <<<< TAY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> TSX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0xBA => {                                           // Implied
+                self.cpu.x = self.cpu.stack_pointer;
+                self.set_zero_flag(self.cpu.x);
+                self.set_negative_flag(self.cpu.x);
+            },
+
+// <<<< TSX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> TXA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x8A => {                                           // Implied
+                self.cpu.accumulator = self.cpu.y;
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+
+// <<<< TXA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> TXS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x9A => {                                           // Implied
+                self.cpu.stack_pointer = self.cpu.x;
+            },
+
+// <<<< TXS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> TYA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x98 => {                                           // Implied
+                self.cpu.accumulator = self.cpu.y;
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+
+// <<<< TYA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
             _ => panic!("Unrecognized instruction {:#X}", instruction) 
         }
