@@ -13,7 +13,7 @@ impl Nes {
                         memory: memory::Memory::new()
                     }
     }
-// >>>> Flag operations start >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> Flag operations start >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     fn set_carry_flag(&mut self, arg: u8) {
         if arg & 0x01 == 0x01 {
@@ -34,9 +34,9 @@ impl Nes {
     }
 
 
-// <<<< Flag operations end <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< Flag operations end <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> Addressing modes start >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> Addressing modes start >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     fn immediate(&mut self) -> u8 {
         self.cpu.program_counter += 1;
@@ -47,24 +47,24 @@ impl Nes {
         self.cpu.program_counter += 1;
         self.cpu.program_counter += 1;
         let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-        return self.memory.primary_memory[zero_page_address as usize];
+        return zero_page_address;
     }
 
     fn zero_page_x(&mut self) -> u8 {
         self.cpu.program_counter += 1;
         let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.x);
 
-        return self.memory.primary_memory[zero_page_address as usize];
+        return zero_page_address;
     }
 
     fn zero_page_y(&mut self) -> u8 {
         self.cpu.program_counter += 1;
         let zero_page_address: u8 = self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.y);                // two cpu cycle
 
-        return self.memory.primary_memory[zero_page_address as usize];
+        return zero_page_address;
     }
 
-    fn absolute(&mut self) -> u8 {
+    fn absolute(&mut self) -> u16 {
         self.cpu.program_counter += 1;
         let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
                                                         // one cpu cycle
@@ -73,10 +73,10 @@ impl Nes {
                                                         // one cpu cycle
         let absolute_address: u16 = (hi as u16) << 8 | lo as u16;
 
-        return self.memory.primary_memory[absolute_address as usize];
+        return absolute_address;
     }
 
-    fn absolute_x(&mut self) -> u8 {
+    fn absolute_x(&mut self) -> u16 {
         self.cpu.program_counter += 1;
         let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
                                                         // one cpu cycle
@@ -85,10 +85,10 @@ impl Nes {
                                                         // one cpu cycle
         let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.x as u16);
 
-        return self.memory.primary_memory[absolute_address as usize];
+        return absolute_address;
     }
 
-    fn absolute_y(&mut self) -> u8 {
+    fn absolute_y(&mut self) -> u16 {
         self.cpu.program_counter += 1;
         let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
                                                         // one cpu cycle
@@ -97,7 +97,7 @@ impl Nes {
                                                         // one cpu cycle
         let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.y as u16);
 
-        return self.memory.primary_memory[absolute_address as usize];
+        return absolute_address;
     }
 
     fn indirect(&mut self) -> u8 {
@@ -144,13 +144,42 @@ impl Nes {
     }
 
 
-// <<<< Addressing modes end <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< Addressing modes end <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     pub fn execute(&mut self, instruction: u8) {
         
         match instruction {
 
-// >>>> AND starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> ADC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x69 => {
+
+            },
+            0x65 => {
+
+            },
+            0x75 => {
+
+            },
+            0x6D => {
+
+            },
+            0x7D => {
+
+            },
+            0x79 => {
+
+            },
+            0x61 => {
+
+            },
+            0x71 => {
+
+            },
+
+// <<<< ADC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> AND starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x29 => {                                           // Immediate
                 self.cpu.accumulator &= self.immediate();
@@ -158,44 +187,44 @@ impl Nes {
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x25 => {                                           // Zero page
-                self.cpu.accumulator &= self.zero_page();
+                self.cpu.accumulator &= self.memory.primary_memory[self.zero_page() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x35 => {                                           // Zero page, X
-                self.cpu.accumulator &= self.zero_page_x();
+                self.cpu.accumulator &= self.memory.primary_memory[self.zero_page_x() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x2D => {                                           // Absolute
-                self.cpu.accumulator &= self.absolute();
+                self.cpu.accumulator &= self.memory.primary_memory[self.absolute() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x3D => {                                           // Absolute, X
-                self.cpu.accumulator &= self.absolute_x();
+                self.cpu.accumulator &= self.memory.primary_memory[self.absolute_x() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x39 => {                                           // Absolute, Y
-                self.cpu.accumulator &= self.absolute_y();
+                self.cpu.accumulator &= self.memory.primary_memory[self.absolute_y() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x21 => {                                           // (Indirect, X)
-                self.cpu.accumulator &= self.indexed_indirect();
+                self.cpu.accumulator &= self.memory.primary_memory[self.indexed_indirect() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x31 => {                                           // (Indirect), Y
-                self.cpu.accumulator &= self.indirect_indexed();
+                self.cpu.accumulator &= self.memory.primary_memory[self.indirect_indexed() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
 
-// <<<< AND ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< AND ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> ASL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> ASL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             
             0x0A => {                                           // Accumulator
                 let mut contents: i8 = self.cpu.accumulator as i8;
@@ -206,7 +235,7 @@ impl Nes {
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x06 => {                                           // Zero page
-                let memory_location = self.zero_page();
+                let memory_location = self.memory.primary_memory[self.zero_page() as usize];
                 let mut contents: i8 = self.memory.primary_memory[memory_location as usize] as i8;
                 contents <<= 1;
                 self.memory.primary_memory[memory_location as usize] = contents as u8;
@@ -215,7 +244,7 @@ impl Nes {
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize]);
             },
             0x16 => {                                           // Zero page, X
-                let memory_location = self.zero_page_x();
+                let memory_location = self.memory.primary_memory[self.zero_page_x() as usize];
                 let mut contents: i8 = self.memory.primary_memory[memory_location as usize] as i8;
                 contents <<= 1;
                 self.memory.primary_memory[memory_location as usize] = contents as u8;
@@ -224,7 +253,7 @@ impl Nes {
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize]);
             },
             0x0E => {                                           // Absolute
-                let memory_location = self.absolute();
+                let memory_location = self.memory.primary_memory[self.absolute() as usize];
                 let mut contents: i8 = self.memory.primary_memory[memory_location as usize] as i8;
                 contents <<= 1;
                 self.memory.primary_memory[memory_location as usize] = contents as u8;
@@ -233,7 +262,7 @@ impl Nes {
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize]);
             },
             0x1E => {                                           // Absolute, X
-                let memory_location = self.absolute_x();
+                let memory_location = self.memory.primary_memory[self.absolute_x() as usize];
                 let mut contents: i8 = self.memory.primary_memory[memory_location as usize] as i8;
                 contents <<= 1;
                 self.memory.primary_memory[memory_location as usize] = contents as u8;
@@ -242,9 +271,9 @@ impl Nes {
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize]);
             },
 
-// <<<< ASL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< ASL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> BCC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> BCC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x90 => {
                 if self.cpu.status & 0b0000_0001 == 0b0000_0000 {
@@ -254,9 +283,9 @@ impl Nes {
                 }
             },
 
-// <<<< BCC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< BCC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> BCS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> BCS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xB0 => {
                 if self.cpu.status & 0b0000_0001 == 0b0000_0001 {
@@ -266,9 +295,9 @@ impl Nes {
                 }
             },
 
-// <<<< BCS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< BCS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> BEQ starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> BEQ starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             
             0xF0 => {
                 if self.cpu.status & 0b0000_0010 == 0b0000_0010 {
@@ -278,12 +307,20 @@ impl Nes {
                 }
             },
 
-// <<<< BEQ ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< BEQ ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> BIT starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< BIT ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// >>>> BIT starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-// >>>> BMI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            0x24 => {
+
+            },
+            0x2C => {
+
+            },
+
+// <<<< BIT ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> BMI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x30 => {
                 if self.cpu.status & 0b1000_0000 == 0b1000_0000 {
@@ -293,9 +330,9 @@ impl Nes {
                 }
             },
 
-// <<<< BMI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< BMI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> BNE starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> BNE starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xD0 => {
                 if self.cpu.status & 0b0000_0010 == 0b0000_0000 {
@@ -305,9 +342,9 @@ impl Nes {
                 }
             },
 
-// <<<< BNE ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< BNE ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> BPL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> BPL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x10 => {
                 if self.cpu.status & 0b1000_0000 == 0b0000_0000 {
@@ -317,12 +354,17 @@ impl Nes {
                 }
             },
 
-// <<<< BPL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< BPL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> BRK starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< BRK ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// >>>> BRK starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-// >>>> BVC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            0x00 => {
+                
+            }
+
+// <<<< BRK ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> BVC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x50 => {
                 if self.cpu.status & 0b0100_0000 == 0b0000_0000 {
@@ -332,9 +374,9 @@ impl Nes {
                 }
             },
 
-// <<<< BVC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< BVC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> BVS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> BVS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x70 => {
                 if self.cpu.status & 0b0100_0000 == 0b0100_0000 {
@@ -344,41 +386,41 @@ impl Nes {
                 }
             },
 
-// <<<< BVS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< BVS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> CLC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> CLC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x18 => {
                 self.cpu.status &= 0b1111_1110;
             },
 
-// <<<< CLC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< CLC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> CLD starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> CLD starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xD8 => {
                 self.cpu.status &= 0b1111_0111;
             },
 
-// <<<< CLD ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< CLD ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> CLI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> CLI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x58 => {
                 self.cpu.status &= 0b1111_1011;
             },
 
-// <<<< CLI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< CLI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> CLV starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> CLV starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xB8 => {
                 self.cpu.status &= 0b1011_1111;
             },
 
-// <<<< CLV ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< CLV ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> CMP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> CMP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xC9 => {                                           // Immediate
                 let result = self.cpu.accumulator - self.immediate();
@@ -387,51 +429,51 @@ impl Nes {
                 self.set_negative_flag(result);
             },
             0xC5 => {                                           // Zero page
-                let result = self.cpu.accumulator - self.zero_page();
+                let result = self.cpu.accumulator - self.memory.primary_memory[self.zero_page() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
             },
             0xD5 => {                                           // Zero page, X
-                let result = self.cpu.accumulator - self.zero_page_x();
+                let result = self.cpu.accumulator - self.memory.primary_memory[self.zero_page_x() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
             },
             0xCD => {                                           // Absolute
-                let result = self.cpu.accumulator - self.absolute();
+                let result = self.cpu.accumulator - self.memory.primary_memory[self.absolute() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
             },
             0xDD => {                                           // Absolute, X
-                let result = self.cpu.accumulator - self.absolute_x();
+                let result = self.cpu.accumulator - self.memory.primary_memory[self.absolute_x() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
             },
             0xD9 => {                                           // Absolute, Y
-                let result = self.cpu.accumulator - self.absolute_y();
+                let result = self.cpu.accumulator - self.memory.primary_memory[self.absolute_y() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
             },
             0xC1 => {                                           // (Indirect, X)
-                let result = self.cpu.accumulator - self.indexed_indirect();
+                let result = self.cpu.accumulator - self.memory.primary_memory[self.indexed_indirect() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
             },
             0xD1 => {                                           // (Indirect, X)
-                let result = self.cpu.accumulator - self.indirect_indexed();
+                let result = self.cpu.accumulator - self.memory.primary_memory[self.indirect_indexed() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
             },
             
-// <<<< CMP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< CMP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> CPX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> CPX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xE0 => {                                           // Immediate
                 let result = self.cpu.x - self.immediate();
@@ -440,21 +482,21 @@ impl Nes {
                 self.set_negative_flag(result);
             },
             0xE4 => {                                           // Zero page
-                let result = self.cpu.x - self.zero_page();
+                let result = self.cpu.x - self.memory.primary_memory[self.zero_page() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
             },
             0xEC => {                                           // Absolute
-                let result = self.cpu.x - self.absolute();
+                let result = self.cpu.x - self.memory.primary_memory[self.absolute() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
             },
 
-// <<<< CPX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< CPX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> CPY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> CPY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xC0 => {                                           // Immediate
                 let result = self.cpu.y - self.immediate();
@@ -463,50 +505,50 @@ impl Nes {
                 self.set_negative_flag(result);
             },
             0xC4 => {                                           // Zero page
-                let result = self.cpu.y - self.zero_page();
+                let result = self.cpu.y - self.memory.primary_memory[self.zero_page() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
             },
             0xCC => {                                           // Absolute
-                let result = self.cpu.y - self.absolute();
+                let result = self.cpu.y - self.memory.primary_memory[self.absolute() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
             },
 
-// <<<< CPY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< CPY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> DEC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> DEC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xC6 => {                                           // Zero page
-                let memory_location = self.zero_page();
+                let memory_location = self.memory.primary_memory[self.zero_page() as usize];
                 self.memory.primary_memory[memory_location as usize]  -= 1;
                 self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
             0xD6 => {                                           // Zero page, X
-                let memory_location = self.zero_page_x();
+                let memory_location = self.memory.primary_memory[self.zero_page_x() as usize];
                 self.memory.primary_memory[memory_location as usize]  -= 1;
                 self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
             0xCE => {                                           // Absolute
-                let memory_location = self.absolute();
+                let memory_location = self.memory.primary_memory[self.absolute() as usize];
                 self.memory.primary_memory[memory_location as usize]  -= 1;
                 self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
             0xDE => {                                           //Absolute, X
-                let memory_location = self.absolute_x();
+                let memory_location = self.memory.primary_memory[self.absolute_x() as usize];
                 self.memory.primary_memory[memory_location as usize]  -= 1;
                 self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
 
-// <<<< DEC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< DEC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> DEX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> DEX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xCA => {                                           // Implied
                 self.cpu.x -= 1;
@@ -514,9 +556,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.x);
             },
 
-// <<<< DEX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< DEX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> DEY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> DEY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x88 => {                                           // Implied
                 self.cpu.y -= 1;
@@ -524,41 +566,41 @@ impl Nes {
                 self.set_negative_flag(self.cpu.y);
             },
 
-// <<<< DEY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< DEY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> EOR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< EOR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// >>>> EOR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< EOR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> INC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> INC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xE6 => {                                           // Zero page
-                let memory_location = self.zero_page();
+                let memory_location = self.memory.primary_memory[self.zero_page() as usize];
                 self.memory.primary_memory[memory_location as usize]  += 1;
                 self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
             0xF6 => {                                           // Zero page, X
-                let memory_location = self.zero_page_x();
+                let memory_location = self.memory.primary_memory[self.zero_page_x() as usize];
                 self.memory.primary_memory[memory_location as usize]  += 1;
                 self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
             0xEE => {                                           // Absolute
-                let memory_location = self.absolute();
+                let memory_location = self.memory.primary_memory[self.absolute() as usize];
                 self.memory.primary_memory[memory_location as usize]  += 1;
                 self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
             0xFE => {                                           //Absolute, X
-                let memory_location = self.absolute_x();
+                let memory_location = self.memory.primary_memory[self.absolute_x() as usize];
                 self.memory.primary_memory[memory_location as usize]  += 1;
                 self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
 
-// <<<< INC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< INC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> INX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> INX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xE8 => {                                           // Implied
                 self.cpu.x += 1;
@@ -566,9 +608,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.x);
             },
 
-// <<<< INX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< INX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> INY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> INY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xC8 => {                                           // Implied
                 self.cpu.y += 1;
@@ -576,9 +618,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.y);
             },
 
-// <<<< INY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< INY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> JMP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> JMP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x4C => {                                           // Absolute
                 self.cpu.program_counter += 1;
@@ -607,11 +649,11 @@ impl Nes {
 
                 self.cpu.program_counter = (hi as u16) << 8 | lo as u16 - 1;
                                                                 // To cancel out the final incr
-            }
+            },
 
-// <<<< JMP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< JMP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> JSR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> JSR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x20 => {                                           // Absolute
                 self.cpu.program_counter += 1;
@@ -632,9 +674,9 @@ impl Nes {
                 self.cpu.program_counter = (hi as u16) << 8 | lo as u16;
             },
 
-// <<<< JSR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< JSR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> LDA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> LDA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xA9 => {                                           // Immediate
                 self.cpu.accumulator = self.immediate();
@@ -642,44 +684,44 @@ impl Nes {
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0xA5 => {                                           // Zero page
-                self.cpu.accumulator = self.zero_page();
+                self.cpu.accumulator = self.memory.primary_memory[self.zero_page() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0xB5 => {                                           // Zero page, X
-                self.cpu.accumulator = self.zero_page_x();
+                self.cpu.accumulator = self.memory.primary_memory[self.zero_page_x() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0xAD => {                                           // Absolute
-                self.cpu.accumulator = self.absolute();
+                self.cpu.accumulator = self.memory.primary_memory[self.absolute() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0xBD => {                                           // Absolute, X
-                self.cpu.accumulator = self.absolute_x();
+                self.cpu.accumulator = self.memory.primary_memory[self.absolute_x() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0xB9 => {                                           // Absolute, Y
-                self.cpu.accumulator = self.absolute_y();
+                self.cpu.accumulator = self.memory.primary_memory[self.absolute_y() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0xA1 => {                                           // (Indirect, X)
-                self.cpu.accumulator = self.indexed_indirect();
+                self.cpu.accumulator = self.memory.primary_memory[self.indexed_indirect() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0xB1 => {                                           // (Indirect), Y
-                self.cpu.accumulator = self.indirect_indexed();
+                self.cpu.accumulator = self.memory.primary_memory[self.indirect_indexed() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
 
-// <<<< LDA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< LDA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> LDX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> LDX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xA2 => {                                           // Immediate
                 self.cpu.x = self.immediate();
@@ -687,29 +729,29 @@ impl Nes {
                 self.set_negative_flag(self.cpu.x);
             },
             0xA6 => {                                           // Zero page
-                self.cpu.x = self.zero_page();
+                self.cpu.x = self.memory.primary_memory[self.zero_page() as usize];
                 self.set_zero_flag(self.cpu.x);
                 self.set_negative_flag(self.cpu.x);
             },
             0xB6 => {                                           // Zero page, Y
-                self.cpu.x = self.zero_page_y();
+                self.cpu.x = self.memory.primary_memory[self.zero_page_y() as usize];
                 self.set_zero_flag(self.cpu.x);
                 self.set_negative_flag(self.cpu.x);
             },
             0xAE => {                                           // Absolute
-                self.cpu.x = self.absolute();
+                self.cpu.x = self.memory.primary_memory[self.absolute() as usize];
                 self.set_zero_flag(self.cpu.x);
                 self.set_negative_flag(self.cpu.x);
             },
             0xBE => {                                           // Absolute, Y
-                self.cpu.x = self.absolute_y();
+                self.cpu.x = self.memory.primary_memory[self.absolute_y() as usize];
                 self.set_zero_flag(self.cpu.x);
                 self.set_negative_flag(self.cpu.x);
             },
 
-// <<<< LDX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< LDX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> LDY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> LDY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xA0 => {                                           // Immediate
                 self.cpu.y = self.immediate();
@@ -717,29 +759,29 @@ impl Nes {
                 self.set_negative_flag(self.cpu.y);
             },
             0xA4 => {                                           // Zero page
-                self.cpu.y = self.zero_page();
+                self.cpu.y = self.memory.primary_memory[self.zero_page() as usize];
                 self.set_zero_flag(self.cpu.y);
                 self.set_negative_flag(self.cpu.y);
             },
             0xB4 => {                                           // Zero page, X
-                self.cpu.y = self.zero_page_x();
+                self.cpu.y = self.memory.primary_memory[self.zero_page_x() as usize];
                 self.set_zero_flag(self.cpu.y);
                 self.set_negative_flag(self.cpu.y);
             },
             0xAC => {                                           // Absolute
-                self.cpu.y = self.absolute();
+                self.cpu.y = self.memory.primary_memory[self.absolute() as usize];
                 self.set_zero_flag(self.cpu.y);
                 self.set_negative_flag(self.cpu.y);
             },
             0xBC => {                                           // Absolute, X
-                self.cpu.y = self.absolute_x();
+                self.cpu.y = self.memory.primary_memory[self.absolute_x() as usize];
                 self.set_zero_flag(self.cpu.y);
                 self.set_negative_flag(self.cpu.y);
             },
 
-// <<<< LDY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< LDY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> LSR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> LSR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x4A => {                                           // Accumulator
                 self.set_carry_flag(self.cpu.accumulator);
@@ -748,45 +790,45 @@ impl Nes {
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x46 => {                                           // Zero page
-                let memory_location = self.zero_page();
+                let memory_location = self.memory.primary_memory[self.zero_page() as usize];
                 self.set_carry_flag(self.memory.primary_memory[memory_location as usize] );
                 self.memory.primary_memory[memory_location as usize]  >>= 1;
                 self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
             0x56 => {                                           // Zero page, X
-                let memory_location = self.zero_page_x();
+                let memory_location = self.memory.primary_memory[self.zero_page_x() as usize];
                 self.set_carry_flag(self.memory.primary_memory[memory_location as usize] );
                 self.memory.primary_memory[memory_location as usize]  >>= 1;
                 self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
             0x4E => {                                           // Absolute
-                let memory_location = self.absolute();
+                let memory_location = self.memory.primary_memory[self.absolute() as usize];
                 self.set_carry_flag(self.memory.primary_memory[memory_location as usize] );
                 self.memory.primary_memory[memory_location as usize]  >>= 1;
                 self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
             0x5E => {                                           // Absolute, X
-                let memory_location = self.absolute_x();
+                let memory_location = self.memory.primary_memory[self.absolute_x() as usize];
                 self.set_carry_flag(self.memory.primary_memory[memory_location as usize] );
                 self.memory.primary_memory[memory_location as usize]  >>= 1;
                 self.set_zero_flag(self.memory.primary_memory[memory_location as usize] );
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize] );
             },
 
-// <<<< LSR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< LSR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> NOP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> NOP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xEA => {
                 /* No operation */                              // Implied
             },
 
-// <<<< NOP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< NOP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> ORA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> ORA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x09 => {                                           // Immediate
                 self.cpu.accumulator  |= self.memory.primary_memory[self.immediate() as usize];
@@ -795,121 +837,258 @@ impl Nes {
             },
             0x05 => {                                           // Zero page
 
-                self.cpu.accumulator  |= self.memory.primary_memory[self.zero_page() as usize];
+                self.cpu.accumulator  |= self.memory.primary_memory[self.memory.primary_memory[self.zero_page() as usize] as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x15 => {                                           // Zero page, X
 
-                self.cpu.accumulator  |= self.memory.primary_memory[self.zero_page_x() as usize];
+                self.cpu.accumulator  |= self.memory.primary_memory[self.memory.primary_memory[self.zero_page_x() as usize] as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x0D => {                                           // Absolute
 
-                self.cpu.accumulator  |= self.memory.primary_memory[self.absolute() as usize];
+                self.cpu.accumulator  |= self.memory.primary_memory[self.memory.primary_memory[self.absolute() as usize] as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x1D => {                                           // Absolute, X
 
-                self.cpu.accumulator  |= self.memory.primary_memory[self.absolute_x() as usize];
+                self.cpu.accumulator  |= self.memory.primary_memory[self.memory.primary_memory[self.absolute_x() as usize] as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x19 => {                                           // Absolute, Y
 
-                self.cpu.accumulator  |= self.memory.primary_memory[self.absolute_y() as usize];
+                self.cpu.accumulator  |= self.memory.primary_memory[self.memory.primary_memory[self.absolute_y() as usize] as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x01 => {                                           // (Indirect, X)
 
-                self.cpu.accumulator  |= self.memory.primary_memory[self.indexed_indirect() as usize];
+                self.cpu.accumulator  |= self.memory.primary_memory[self.memory.primary_memory[self.indexed_indirect() as usize] as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
             0x11 => {                                           // (Indirect), Y
 
-                self.cpu.accumulator  |= self.memory.primary_memory[self.indirect_indexed() as usize];
+                self.cpu.accumulator  |= self.memory.primary_memory[self.memory.primary_memory[self.indirect_indexed() as usize] as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
 
-// <<<< ORA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< ORA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> PHA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> PHA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x48 => {                                           // Implied
                 self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize] = self.cpu.accumulator;                                    // two cpu cycle
                 self.cpu.stack_pointer -= 1;
             },
 
-// <<<< PHA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< PHA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> PHP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> PHP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x08 => {                                           // Implied
                 self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize] = self.cpu.status;                                         // two cpu cycle
                 self.cpu.stack_pointer -= 1;
             },
 
-// <<<< PHP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< PHP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> PLA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> PLA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x68 => {                                           // Implied
                 self.cpu.stack_pointer += 1;
                 self.cpu.accumulator = self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
-            }
+            },
 
-// <<<< PLA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< PLA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> PLP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> PLP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x28 => {                                           // Implied
                 self.cpu.stack_pointer += 1;
                 self.cpu.status = self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize]; 
             },
 
-// <<<< PLP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< PLP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> ROL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< ROL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// >>>> ROL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< ROL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> ROR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< ROR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// >>>> ROR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< ROR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> RTI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< RTI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// >>>> RTI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-// >>>> RTS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< RTS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            0x40 => {                                           // Implied
+                self.cpu.stack_pointer += 1;
+                self.cpu.status = self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize];                                         // Pulling status flags
+                self.cpu.stack_pointer += 1;
+                let lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                                // one cpu cycle
+                self.cpu.stack_pointer += 1;
+                let hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
+                                                                // one cpu cycle
+                self.cpu.program_counter =  (hi as u16) << 8 | lo as u16;
+                self.cpu.program_counter -= 1;                  // -1 because the pc is incremented outside the switch block
+            },
 
-// >>>> SBC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< SBC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< RTI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> SEC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< SEC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// >>>> RTS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-// >>>> SED starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< SED ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            0x60 => {                                           // Implied
+                self.cpu.stack_pointer += 1;
+                let lo: u8 = self.memory.primary_memory[self.cpu.stack_pointer as usize];
+                                                                // one cpu cycle
+                self.cpu.stack_pointer += 1;
+                let hi: u8 = self.memory.primary_memory[self.cpu.stack_pointer as usize];
+                                                                // one cpu cycle
 
-// >>>> SEI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< SEI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+                self.cpu.program_counter = (hi as u16) << 8 | lo as u16;
+            }
 
-// >>>> STA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< STA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< RTS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> STX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< STX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// >>>> SBC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-// >>>> STY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// <<<< STY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            0xE9 => {                                           // Immediate
+                let rhs = self.immediate().wrapping_sub(1 - self.cpu.status & 0x01);
+                self.cpu.accumulator  = self.cpu.accumulator.wrapping_sub(rhs);
+                self.set_carry_flag(self.cpu.accumulator);
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+            0xE5 => {                                           // Zero page
+                let rhs = self.memory.primary_memory[self.zero_page() as usize].wrapping_sub(1 - self.cpu.status & 0x01);
+                self.cpu.accumulator  = self.cpu.accumulator.wrapping_sub(rhs);
+                self.set_carry_flag(self.cpu.accumulator);
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+            0xF5 => {                                           // Zero page, X
+                let rhs = self.memory.primary_memory[self.zero_page_x() as usize].wrapping_sub(1 - self.cpu.status & 0x01);
+                self.cpu.accumulator  = self.cpu.accumulator.wrapping_sub(rhs);
+                self.set_carry_flag(self.cpu.accumulator);
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+            0xED => {                                           // Absolute
+                let rhs = self.memory.primary_memory[self.absolute() as usize].wrapping_sub(1 - self.cpu.status & 0x01);
+                self.cpu.accumulator  = self.cpu.accumulator.wrapping_sub(rhs);
+                self.set_carry_flag(self.cpu.accumulator);
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+            0xF9 => {                                           // Absolute, Y
+                let rhs = self.memory.primary_memory[self.absolute_y() as usize].wrapping_sub(1 - self.cpu.status & 0x01);
+                self.cpu.accumulator  = self.cpu.accumulator.wrapping_sub(rhs);
+                self.set_carry_flag(self.cpu.accumulator);
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+            0xE1 => {                                           // (Indirect, X)
+                let rhs = self.memory.primary_memory[self.indexed_indirect() as usize].wrapping_sub(1 - self.cpu.status & 0x01);
+                self.cpu.accumulator  = self.cpu.accumulator.wrapping_sub(rhs);
+                self.set_carry_flag(self.cpu.accumulator);
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
+            0xF1 => {                                           // (Indirect), Y
+                let rhs = self.memory.primary_memory[self.indirect_indexed() as usize].wrapping_sub(1 - self.cpu.status & 0x01);
+                self.cpu.accumulator  = self.cpu.accumulator.wrapping_sub(rhs);
+                self.set_carry_flag(self.cpu.accumulator);
+                self.set_zero_flag(self.cpu.accumulator);
+                self.set_negative_flag(self.cpu.accumulator);
+            },
 
-// >>>> TAX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// <<<< SBC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> SEC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x38 => {                                           // Implied
+                self.cpu.status |= 0b0000_0001;
+            },
+
+// <<<< SEC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> SED starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0xF8 => {
+                self.cpu.status |= 0b0000_1000;
+            },
+
+// <<<< SED ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> SEI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x78 => {
+                self.cpu.status |= 0b0000_0100;
+            },
+
+// <<<< SEI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> STA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x85 => {                                           // Zero page
+                self.memory.primary_memory[self.zero_page() as usize] = self.cpu.accumulator;
+            },
+            0x95 => {                                           // Zero page, X
+                self.memory.primary_memory[self.zero_page_x() as usize] = self.cpu.accumulator;
+            },
+            0x8D => {                                           // Absolute
+                self.memory.primary_memory[self.absolute() as usize] = self.cpu.accumulator;
+            },
+            0x9D => {                                           // Absolute, X
+                self.memory.primary_memory[self.absolute_x() as usize] = self.cpu.accumulator;
+            },
+            0x99 => {                                           // Absolute, Y
+                self.memory.primary_memory[self.absolute_y() as usize] = self.cpu.accumulator;
+            },
+            0x81 => {                                           // (Indirect, X)
+                self.memory.primary_memory[self.indexed_indirect() as usize] = self.cpu.accumulator;
+            },
+            0x91 => {                                           // (Indirect), Y
+                self.memory.primary_memory[self.indirect_indexed() as usize] = self.cpu.accumulator;
+            },
+
+// <<<< STA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> STX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x86 => {                                           // Zero page
+                self.memory.primary_memory[self.zero_page() as usize] = self.cpu.x;
+            },
+            0x96 => {                                           // Zero page, Y
+                self.memory.primary_memory[self.zero_page_y() as usize] = self.cpu.x;
+            },
+            0x8E => {                                           // Absolute
+                self.memory.primary_memory[self.absolute() as usize] = self.cpu.x;
+            },   
+
+// <<<< STX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> STY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x84 => {                                           // Zero page
+                self.memory.primary_memory[self.zero_page() as usize] = self.cpu.y;
+            },
+            0x94 => {                                           // Zero page, X
+                self.memory.primary_memory[self.zero_page_x() as usize] = self.cpu.y;
+            },
+            0x8C => {                                           // Absolute
+                self.memory.primary_memory[self.absolute() as usize] = self.cpu.y;
+            },  
+
+// <<<< STY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+// >>>> TAX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xAA => {                                           // Implied
                 self.cpu.x = self.cpu.accumulator;
@@ -917,9 +1096,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.x);
             },
 
-// <<<< TAX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< TAX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> TAY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> TAY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xA8 => {                                           // Implied
                 self.cpu.y = self.cpu.accumulator;
@@ -927,9 +1106,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.y);
             },
 
-// <<<< TAY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< TAY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> TSX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> TSX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0xBA => {                                           // Implied
                 self.cpu.x = self.cpu.stack_pointer;
@@ -937,9 +1116,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.x);
             },
 
-// <<<< TSX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< TSX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> TXA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> TXA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x8A => {                                           // Implied
                 self.cpu.accumulator = self.cpu.y;
@@ -947,17 +1126,17 @@ impl Nes {
                 self.set_negative_flag(self.cpu.accumulator);
             },
 
-// <<<< TXA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< TXA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> TXS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> TXS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x9A => {                                           // Implied
                 self.cpu.stack_pointer = self.cpu.x;
             },
 
-// <<<< TXS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< TXS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// >>>> TYA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>> TYA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             0x98 => {                                           // Implied
                 self.cpu.accumulator = self.cpu.y;
@@ -965,7 +1144,7 @@ impl Nes {
                 self.set_negative_flag(self.cpu.accumulator);
             },
 
-// <<<< TYA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// <<<< TYA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
             _ => panic!("Unrecognized instruction {:#X}", instruction) 
         }

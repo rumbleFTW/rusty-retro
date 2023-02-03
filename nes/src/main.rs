@@ -3,14 +3,15 @@ mod nes;
 
 fn main() {
     let mut ns = nes::Nes::new();
-    ns.cpu.y = 0x04;
-    ns.cpu.x = 0x02;
-    ns.memory.primary_memory[0xFFFC] = 0x6C;
-    ns.memory.primary_memory[0xFFFD] = 0x20;
-    ns.memory.primary_memory[0xFFFE] = 0x10;
-    ns.memory.primary_memory[0x1020] = 0xFC;
-    ns.memory.primary_memory[0x1021] = 0xBA;
-    ns.memory.primary_memory[0xBAFC] = 0x69;
-    ns.emulate_cycle();
-    ns.debug();
+
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        panic!("Please provide the path to the rom to run!");
+    }
+    let rom_path = &args[1];
+    let mut c8 = chip8::Chip8::new();
+    let mut f = fs::File::open(&rom_path).expect("no file found");
+    let metadata = fs::metadata(&rom_path).expect("unable to read metadata");
+    let mut buffer = vec![0; metadata.len() as usize];
+    f.read(&mut buffer).expect("buffer overflow");
 }
