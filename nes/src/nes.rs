@@ -569,6 +569,40 @@ impl Nes {
 // <<<< DEY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 // >>>> EOR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            0x49 => {
+                self.cpu.accumulator ^= self.memory.primary_memory[self.immediate() as usize];
+                                                                // Immediate
+            },
+            0x45 => {
+                self.cpu.accumulator ^= self.memory.primary_memory[self.zero_page() as usize];
+                                                                // Zero page
+            },
+            0x55 => {
+                self.cpu.accumulator ^= self.memory.primary_memory[self.zero_page_x() as usize];
+                                                                // Zero page, X
+            },
+            0x4D => {
+                self.cpu.accumulator ^= self.memory.primary_memory[self.absolute() as usize];
+                                                                // Absolute
+            },
+            0x5D => {
+                self.cpu.accumulator ^= self.memory.primary_memory[self.absolute_x() as usize];
+                                                                // Absolute, X
+            },
+            0x59 => {
+                self.cpu.accumulator ^= self.memory.primary_memory[self.absolute_y() as usize];
+                                                                // Absolute, Y
+            },
+            0x41 => {
+                self.cpu.accumulator ^= self.memory.primary_memory[self.indexed_indirect() as usize];
+                                                                // Indirect, X
+            },
+            0x51 => {
+                self.cpu.accumulator ^= self.memory.primary_memory[self.indirect_indexed() as usize];
+                                                                // Indirect, X
+            },
+
 // <<<< EOR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 // >>>> INC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -785,7 +819,7 @@ impl Nes {
 
             0x4A => {                                           // Accumulator
                 self.set_carry_flag(self.cpu.accumulator);
-                self.cpu.accumulator = self.cpu.accumulator >> 1;
+                self.cpu.accumulator >>= 1;
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             },
