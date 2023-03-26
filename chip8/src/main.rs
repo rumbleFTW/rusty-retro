@@ -1,16 +1,20 @@
-use std::fs;
-use std::time::{Duration, Instant};
-use std::io::Read;
-use std::env;
 use minifb;
+use std::env;
+use std::fs;
+use std::io::Read;
+use std::time::{Duration, Instant};
 
 mod chip8;
+
+const DEBUG: bool = false;
 
 const PIXEL_ON: u32 = 0x31fe65;
 const PIXEL_OFF: u32 = 0x000000;
 
 const FONT_ON: u32 = 0xFFA500;
 const FONT_OFF: u32 = 0x000000;
+
+const SCALE: usize = 2;
 
 const WIDTH: usize = 640;
 const HEIGHT: usize = 320;
@@ -25,7 +29,6 @@ fn color_from_bit(bit: u8) -> u32 {
 pub struct StatusText {
     texture: Vec<u32>,
     width: usize,
-    //height: usize,
     scale: usize,
 }
 
@@ -79,12 +82,18 @@ impl StatusText {
         }
     }
 }
-fn main () {
-
+fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         panic!("Please provide the path to the rom to run!");
     }
+
+    // if args.iter().any(|i| i == "-d") {
+    //     DEBUG = true;
+    // } else {
+    //     DEBUG = false;
+    // }
+
     let rom_path = &args[1];
     let mut c8 = chip8::Chip8::new();
     c8.memory.load_sprites();
@@ -93,33 +102,42 @@ fn main () {
     let metadata = fs::metadata(&rom_path).expect("unable to read metadata");
     let mut buffer = vec![0; metadata.len() as usize];
     f.read(&mut buffer).expect("buffer overflow");
-    
+
     c8.memory.load_program(&buffer);
     let mut last_key_update_time = Instant::now();
     let mut last_instruction_run_time = Instant::now();
     let mut last_display_time = Instant::now();
-    
-    let mut window = minifb::Window::new("rusty-retro: Chip8",
-                            WIDTH,
-                            HEIGHT * 2 - 90,
-                            minifb::WindowOptions::default()).unwrap();
 
+    let mut window = minifb::Window::new(
+        "rusty-retro: Chip8",
+        WIDTH,
+        if DEBUG == true {
+            HEIGHT * 2 - 90
+        } else {
+            HEIGHT
+        },
+        minifb::WindowOptions::default(),
+    )
+    .unwrap();
 
-    let status_text = StatusText::new(WIDTH, HEIGHT, 2);
+    let status_text = StatusText::new(WIDTH, HEIGHT, SCALE);
 
     while window.is_open() && !window.is_key_down(minifb::Key::Escape) {
-
         let keys_pressed = window.get_keys_pressed(minifb::KeyRepeat::Yes);
         let key = match keys_pressed {
-            Some(keys) => if !keys.is_empty() {
-                Some(keys[0])
-            } else {
-                None
-            },
+            Some(keys) => {
+                if !keys.is_empty() {
+                    Some(keys[0])
+                } else {
+                    None
+                }
+            }
             None => None,
         };
 
-        if c8.keyboard.get_key_code(key).is_some() || Instant::now() - last_key_update_time >= Duration::from_millis(200){
+        if c8.keyboard.get_key_code(key).is_some()
+            || Instant::now() - last_key_update_time >= Duration::from_millis(200)
+        {
             c8.keyboard.pressed_key = c8.keyboard.get_key_code(key);
             last_key_update_time = Instant::now();
         }
@@ -128,12 +146,10 @@ fn main () {
             c8.emulate_cycle();
             last_instruction_run_time = Instant::now();
         }
-        
-        
+
         if Instant::now() - last_display_time > Duration::from_millis(5) {
-            
             let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT * 2 - 90];
-            
+
             for y in 0..HEIGHT {
                 let y_coord = y / 10;
                 let offset = y * WIDTH;
@@ -148,29 +164,78 @@ fn main () {
                     buffer[offset + x] = color_pixel;
                 }
             }
-    
-            status_text.draw(&mut buffer, (20, HEIGHT + 20), &format!("Program counter: {:#X}", c8.cpu.program_counter));
-    
-            status_text.draw(&mut buffer, (20, HEIGHT + 50), &format!("Current instruction: {:#X}", c8.cpu.current_instruction));
 
-            status_text.draw(&mut buffer, (20, HEIGHT + 80), &format!("Index Register: {:#X}", c8.cpu.i));
-    
-            status_text.draw(&mut buffer, (20, HEIGHT + 110), &format!("Stack pointer: {:#X}", c8.cpu.stack_pointer));
-            
-            status_text.draw(&mut buffer, (20, HEIGHT + 140), &format!("{:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X}", c8.cpu.registers[0], c8.cpu.registers[1], c8.cpu.registers[2], c8.cpu.registers[3], c8.cpu.registers[4], c8.cpu.registers[5], c8.cpu.registers[6], c8.cpu.registers[7]));
-    
-            status_text.draw(&mut buffer, (20, HEIGHT + 170), &format!("{:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X}", c8.cpu.registers[8], c8.cpu.registers[9], c8.cpu.registers[10], c8.cpu.registers[11], c8.cpu.registers[12], c8.cpu.registers[13], c8.cpu.registers[14], c8.cpu.registers[15]));
-    
-            status_text.draw(&mut buffer, (20, HEIGHT + 200), &format!("Key: {:?}", c8.keyboard.pressed_key));
-    
+            if DEBUG == true {
+                status_text.draw(
+                    &mut buffer,
+                    (20, HEIGHT + 20),
+                    &format!("Program counter: {:#X}", c8.cpu.program_counter),
+                );
+
+                status_text.draw(
+                    &mut buffer,
+                    (20, HEIGHT + 50),
+                    &format!("Current instruction: {:#X}", c8.cpu.current_instruction),
+                );
+
+                status_text.draw(
+                    &mut buffer,
+                    (20, HEIGHT + 80),
+                    &format!("Index Register: {:#X}", c8.cpu.i),
+                );
+
+                status_text.draw(
+                    &mut buffer,
+                    (20, HEIGHT + 110),
+                    &format!("Stack pointer: {:#X}", c8.cpu.stack_pointer),
+                );
+
+                status_text.draw(
+                    &mut buffer,
+                    (20, HEIGHT + 140),
+                    &format!(
+                        "{:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X}",
+                        c8.cpu.registers[0],
+                        c8.cpu.registers[1],
+                        c8.cpu.registers[2],
+                        c8.cpu.registers[3],
+                        c8.cpu.registers[4],
+                        c8.cpu.registers[5],
+                        c8.cpu.registers[6],
+                        c8.cpu.registers[7]
+                    ),
+                );
+
+                status_text.draw(
+                    &mut buffer,
+                    (20, HEIGHT + 170),
+                    &format!(
+                        "{:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X} {:#X}",
+                        c8.cpu.registers[8],
+                        c8.cpu.registers[9],
+                        c8.cpu.registers[10],
+                        c8.cpu.registers[11],
+                        c8.cpu.registers[12],
+                        c8.cpu.registers[13],
+                        c8.cpu.registers[14],
+                        c8.cpu.registers[15]
+                    ),
+                );
+
+                status_text.draw(
+                    &mut buffer,
+                    (20, HEIGHT + 200),
+                    &format!("Key: {:?}", c8.keyboard.pressed_key),
+                );
+            }
+
             window.update_with_buffer(&buffer).unwrap();
             last_display_time = Instant::now();
         }
     }
-
 }
 
-pub static MICROKNIGHT_FONT: &[u8] = &[
+pub const MICROKNIGHT_FONT: &[u8] = &[
     0x00, 0x0c, 0x1b, 0x0d, 0x81, 0x03, 0x01, 0xc0, 0x30, 0x18, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x0c, 0x1b, 0x0d, 0x87, 0xc4, 0xb3, 0x60, 0x30, 0x30, 0x0c, 0x1b, 0x03, 0x00, 0x00, 0x00,
     0x00, 0x0c, 0x09, 0x1f, 0xcd, 0x03, 0xe1, 0xc0, 0x10, 0x60, 0x06, 0x0e, 0x03, 0x00, 0x00, 0x00,
@@ -303,7 +368,7 @@ pub static MICROKNIGHT_FONT: &[u8] = &[
 
 // Font layout (generated from Angelcode Bitmap Font generator)
 #[rustfmt::skip]
-pub static MICROKNIGHT_LAYOUT: &[(u8, u8)] = &[
+pub const MICROKNIGHT_LAYOUT: &[(u8, u8)] = &[
     (0, 0), (9, 0), (18, 0), (27, 0), (36, 0), (45, 0), (54, 0), (63, 0), (72, 0), (81, 0), (90, 0), (99, 0), (108, 0),
     (117, 0), (0, 9), (9, 9), (18, 9), (27, 9), (36, 9), (45, 9), (54, 9), (63, 9), (72, 9), (81, 9), (90, 9), (99, 9),
     (108, 9), (117, 9), (0, 18), (9, 18), (18, 18), (27, 18), (36, 18), (45, 18), (54, 18), (63, 18), (72, 18), (81, 18),

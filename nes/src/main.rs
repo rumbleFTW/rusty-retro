@@ -1,6 +1,5 @@
 mod nes;
 
-
 fn main() {
     let mut ns = nes::Nes::new();
 

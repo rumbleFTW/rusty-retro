@@ -1,0 +1,8 @@
+# CH8 files
+/chip8/target
+/chip8/Cargo.lock
+
+
+# NES files
+/nes/target
+/nes/Cargo.lock

@@ -1,29 +1,37 @@
 const WIDTH: usize = 64;
 const HEIGHT: usize = 32;
 pub struct Display {
-    pub buffer: [u8; WIDTH * HEIGHT]
+    pub buffer: [u8; WIDTH * HEIGHT],
 }
 
 impl Display {
-    pub fn new()-> Display {
+    pub fn new() -> Display {
         return Display {
-            buffer: [0x0; WIDTH * HEIGHT]
-        }
+            buffer: [0x0; WIDTH * HEIGHT],
+        };
     }
-    
+
     pub fn clear(&mut self) {
         /*  Clears the whole screen
-        */
+         */
         for i in 0..WIDTH * HEIGHT {
             self.buffer[i] = 0x0;
         }
     }
 
-    pub fn render(&mut self, registers: &mut [u8; 16], x: usize, y: usize, n: u8, primary_memory: &[u8; 4096], i: u16) {
-        let coord_x = registers[x] as usize  % 64;
+    pub fn render(
+        &mut self,
+        registers: &mut [u8; 16],
+        x: usize,
+        y: usize,
+        n: u8,
+        primary_memory: &[u8; 4096],
+        i: u16,
+    ) {
+        let coord_x = registers[x] as usize % 64;
         let coord_y = registers[y] as usize % 32;
         registers[0xF] = 0x0;
-        for row in 0..n as usize{
+        for row in 0..n as usize {
             let sprite = primary_memory[(i + row as u16) as usize];
             for col in 0..8 {
                 if (coord_x + col < 64) && (coord_y + row < 32) {

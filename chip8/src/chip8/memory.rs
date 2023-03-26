@@ -1,24 +1,22 @@
 pub struct Memory {
-
     // Main memory of size 4K
-    pub primary_memory: [u8;4096],
+    pub primary_memory: [u8; 4096],
 
     // Stack. Can take max 16 depths
-    pub stack: [u16;64],
+    pub stack: [u16; 64],
 }
 
 impl Memory {
-
-    pub fn new()-> Memory {
+    pub fn new() -> Memory {
         return Memory {
             primary_memory: [0x000; 4096],
             stack: [0x00; 64],
-        }
+        };
     }
 
     pub fn load_sprites(&mut self) {
-        /*  Load default sprites from 0-F into the main memory  
-        */
+        /*  Load default sprites from 0-F into the main memory
+         */
         let default_sprites = [
             0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
             0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -35,18 +33,18 @@ impl Memory {
             0xF0, 0x80, 0x80, 0x80, 0xF0, // C
             0xE0, 0x90, 0x90, 0x90, 0xE0, // D
             0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-            0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+            0xF0, 0x80, 0xF0, 0x80, 0x80, // F
         ];
         for i in 0..default_sprites.len() {
             self.primary_memory[i] = default_sprites[i];
         }
     }
 
-    pub fn load_program (&mut self, program: &[u8]) {
+    pub fn load_program(&mut self, program: &[u8]) {
         /*  Load the program as u8 array into the main memory
-        */
+         */
         for i in 0..program.len() {
-            self.primary_memory[0x200+i] = program[i];
+            self.primary_memory[0x200 + i] = program[i];
         }
     }
 }
