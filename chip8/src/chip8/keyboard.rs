@@ -1,15 +1,19 @@
 use minifb::Key;
 pub struct Keyboard {
-    pub pressed_key: Option<u8>,
+    pub key_code: Option<u8>,
+    pub key: Option<Key>,
 }
 
 impl Keyboard {
     pub fn new() -> Keyboard {
-        return Keyboard { pressed_key: None };
+        return Keyboard {
+            key: None,
+            key_code: None,
+        };
     }
 
     pub fn is_key_pressed(&self, key_code: u8) -> bool {
-        if let Some(key) = self.pressed_key {
+        if let Some(key) = self.key_code {
             key == key_code
         } else {
             false

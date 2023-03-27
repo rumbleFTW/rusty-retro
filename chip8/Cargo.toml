@@ -1,8 +1,8 @@
 [package]
 name = "chip8"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
-authors = ["rumbleFTW, <007rajdeepghosh@gmail.com>"]
+authors = ["rumbleFTW, <rajdeep.ghosh.1337@gmail.com>"]
 
 [dependencies]
 rand = "0.8.5"
