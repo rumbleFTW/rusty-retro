@@ -13,7 +13,7 @@ impl Nes {
             memory: memory::Memory::new(),
         };
     }
-    // >>>> Flag operations start >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    // >>>> Flag operations start >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     fn set_carry_flag(&mut self, arg: u8) {
         if arg & 0x01 == 0x01 {
@@ -33,13 +33,19 @@ impl Nes {
         }
     }
 
-    // <<<< Flag operations end <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    fn set_overflow_flag(&mut self, arg: u8) {
+        if arg & 0b0100_0000 != 0 {
+            self.cpu.status |= 0b0100_0000;
+        }
+    }
 
-    // >>>> Addressing modes start >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    // <<<< Flag operations end <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+    // >>>> Addressing modes start >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     fn immediate(&mut self) -> u8 {
         self.cpu.program_counter += 1;
-        return self.memory.primary_memory[self.cpu.program_counter as usize];
+        return self.cpu.program_counter as u8;
     }
 
     fn zero_page(&mut self) -> u8 {
@@ -101,7 +107,7 @@ impl Nes {
         return absolute_address;
     }
 
-    fn indirect(&mut self) -> u8 {
+    fn indirect(&mut self) -> u16 {
         self.cpu.program_counter += 1;
         let mut lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
         // one cpu cycle
@@ -116,11 +122,11 @@ impl Nes {
         hi = self.memory.primary_memory[address as usize + 1];
         // one cpu cycle
 
-        return ((hi as u16) << 8 | lo as u16 - 1) as u8;
+        return (hi as u16) << 8 | lo as u16 - 1;
         // -1 because the pc is incremented outside the switch block
     }
 
-    fn indexed_indirect(&mut self) -> u8 {
+    fn indexed_indirect(&mut self) -> u16 {
         self.cpu.program_counter += 1;
         let indirect_address =
             self.memory.primary_memory[self.cpu.program_counter as usize].wrapping_add(self.cpu.x); // one cpu cycle
@@ -129,11 +135,10 @@ impl Nes {
         let hi: u8 = self.memory.primary_memory[indirect_address as usize + 1];
         // two cpu cycle
 
-        let absolute_address: u16 = (hi as u16) << 8 | lo as u16;
-        return self.memory.primary_memory[absolute_address as usize];
+        return (hi as u16) << 8 | lo as u16;
     }
 
-    fn indirect_indexed(&mut self) -> u8 {
+    fn indirect_indexed(&mut self) -> u16 {
         self.cpu.program_counter += 1;
         let indirect_address = self.memory.primary_memory[self.cpu.program_counter as usize]; // one cpu cycle
 
@@ -141,30 +146,173 @@ impl Nes {
         let hi: u8 = self.memory.primary_memory[indirect_address as usize + 1];
         // two cpu cycle
 
-        let absolute_address: u16 = ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.y as u16);
-        return self.memory.primary_memory[absolute_address as usize];
+        return ((hi as u16) << 8 | lo as u16).wrapping_add(self.cpu.y as u16);
     }
 
-    // <<<< Addressing modes end <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    // <<<< Addressing modes end <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     pub fn execute(&mut self, instruction: u8) {
         match instruction {
-            // >>>> ADC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            0x69 => {}
-            0x65 => {}
-            0x75 => {}
-            0x6D => {}
-            0x7D => {}
-            0x79 => {}
-            0x61 => {}
-            0x71 => {}
+            // >>>> ADC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            0x69 => {
+                // Immediate
+                let (result, _) = self
+                    .cpu
+                    .accumulator
+                    .overflowing_add(self.memory.primary_memory[self.immediate() as usize]);
+                let carry = if self.cpu.status & 0b0000_0001 != 0 {
+                    1
+                } else {
+                    0
+                };
+                let (result, _) = result.overflowing_add(carry);
+                self.cpu.accumulator = result;
 
-            // <<<< ADC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_overflow_flag(result);
+                self.set_negative_flag(result);
+            }
+            0x65 => {
+                // Zero page
+                let (result, _) = self
+                    .cpu
+                    .accumulator
+                    .overflowing_add(self.memory.primary_memory[self.zero_page() as usize]);
+                let carry = if self.cpu.status & 0b0000_0001 != 0 {
+                    1
+                } else {
+                    0
+                };
+                let (result, _) = result.overflowing_add(carry);
+                self.cpu.accumulator = result;
 
-            // >>>> AND starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_overflow_flag(result);
+                self.set_negative_flag(result);
+            }
+            0x75 => {
+                // Zero page, X
+                let (result, _) = self
+                    .cpu
+                    .accumulator
+                    .overflowing_add(self.memory.primary_memory[self.zero_page_x() as usize]);
+                let carry = if self.cpu.status & 0b0000_0001 != 0 {
+                    1
+                } else {
+                    0
+                };
+                let (result, _) = result.overflowing_add(carry);
+                self.cpu.accumulator = result;
+
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_overflow_flag(result);
+                self.set_negative_flag(result);
+            }
+            0x6D => {
+                // Absolute
+                let (result, _) = self
+                    .cpu
+                    .accumulator
+                    .overflowing_add(self.memory.primary_memory[self.absolute() as usize]);
+                let carry = if self.cpu.status & 0b0000_0001 != 0 {
+                    1
+                } else {
+                    0
+                };
+                let (result, _) = result.overflowing_add(carry);
+                self.cpu.accumulator = result;
+
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_overflow_flag(result);
+                self.set_negative_flag(result);
+            }
+            0x7D => {
+                // Absolute, X
+                let (result, _) = self
+                    .cpu
+                    .accumulator
+                    .overflowing_add(self.memory.primary_memory[self.absolute_x() as usize]);
+                let carry = if self.cpu.status & 0b0000_0001 != 0 {
+                    1
+                } else {
+                    0
+                };
+                let (result, _) = result.overflowing_add(carry);
+                self.cpu.accumulator = result;
+
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_overflow_flag(result);
+                self.set_negative_flag(result);
+            }
+            0x79 => {
+                // Absolute, Y
+                let (result, _) = self
+                    .cpu
+                    .accumulator
+                    .overflowing_add(self.memory.primary_memory[self.absolute_y() as usize]);
+                let carry = if self.cpu.status & 0b0000_0001 != 0 {
+                    1
+                } else {
+                    0
+                };
+                let (result, _) = result.overflowing_add(carry);
+                self.cpu.accumulator = result;
+
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_overflow_flag(result);
+                self.set_negative_flag(result);
+            }
+            0x61 => {
+                // (Indirect, X)
+                let (result, _) = self
+                    .cpu
+                    .accumulator
+                    .overflowing_add(self.memory.primary_memory[self.indexed_indirect() as usize]);
+                let carry = if self.cpu.status & 0b0000_0001 != 0 {
+                    1
+                } else {
+                    0
+                };
+                let (result, _) = result.overflowing_add(carry);
+                self.cpu.accumulator = result;
+
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_overflow_flag(result);
+                self.set_negative_flag(result);
+            }
+            0x71 => {
+                // (Indirect), Y
+                let (result, _) = self
+                    .cpu
+                    .accumulator
+                    .overflowing_add(self.memory.primary_memory[self.indirect_indexed() as usize]);
+                let carry = if self.cpu.status & 0b0000_0001 != 0 {
+                    1
+                } else {
+                    0
+                };
+                let (result, _) = result.overflowing_add(carry);
+                self.cpu.accumulator = result;
+
+                self.set_carry_flag(result);
+                self.set_zero_flag(result);
+                self.set_overflow_flag(result);
+                self.set_negative_flag(result);
+            }
+
+            // <<<< ADC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+            // >>>> AND starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x29 => {
                 // Immediate
-                self.cpu.accumulator &= self.immediate();
+                self.cpu.accumulator &= self.memory.primary_memory[self.immediate() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             }
@@ -213,9 +361,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.accumulator);
             }
 
-            // <<<< AND ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< AND ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> ASL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> ASL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x0A => {
                 // Accumulator
                 let mut contents: i8 = self.cpu.accumulator as i8;
@@ -266,9 +414,9 @@ impl Nes {
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize]);
             }
 
-            // <<<< ASL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< ASL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> BCC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> BCC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x90 => {
                 if self.cpu.status & 0b0000_0001 == 0b0000_0000 {
                     let offset: u16 =
@@ -278,9 +426,9 @@ impl Nes {
                 }
             }
 
-            // <<<< BCC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< BCC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> BCS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> BCS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xB0 => {
                 if self.cpu.status & 0b0000_0001 == 0b0000_0001 {
                     let offset: u8 =
@@ -290,9 +438,9 @@ impl Nes {
                 }
             }
 
-            // <<<< BCS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< BCS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> BEQ starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> BEQ starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xF0 => {
                 if self.cpu.status & 0b0000_0010 == 0b0000_0010 {
                     let offset: u16 =
@@ -302,15 +450,29 @@ impl Nes {
                 }
             }
 
-            // <<<< BEQ ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< BEQ ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> BIT starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            0x24 => {}
-            0x2C => {}
+            // >>>> BIT starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            0x24 => {
+                // Zero page
+                let result = self.cpu.program_counter as u8
+                    & self.memory.primary_memory[self.zero_page() as usize];
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
+                self.set_overflow_flag(result);
+            }
+            0x2C => {
+                // Absolute
+                let result = self.cpu.program_counter as u8
+                    & self.memory.primary_memory[self.absolute() as usize];
+                self.set_zero_flag(result);
+                self.set_negative_flag(result);
+                self.set_overflow_flag(result);
+            }
 
-            // <<<< BIT ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< BIT ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> BMI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> BMI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x30 => {
                 if self.cpu.status & 0b1000_0000 == 0b1000_0000 {
                     let offset: u16 =
@@ -320,10 +482,11 @@ impl Nes {
                 }
             }
 
-            // <<<< BMI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< BMI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> BNE starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> BNE starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xD0 => {
+                // Implied
                 if self.cpu.status & 0b0000_0010 == 0b0000_0000 {
                     let offset: u16 =
                         self.memory.primary_memory[self.cpu.program_counter as usize + 1] as u16;
@@ -332,9 +495,9 @@ impl Nes {
                 }
             }
 
-            // <<<< BNE ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< BNE ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> BPL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> BPL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x10 => {
                 if self.cpu.status & 0b1000_0000 == 0b0000_0000 {
                     let offset: u16 =
@@ -344,14 +507,28 @@ impl Nes {
                 }
             }
 
-            // <<<< BPL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< BPL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> BRK starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            0x00 => {}
+            // >>>> BRK starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            0x00 => {
+                self.cpu.stack_pointer -= 1;
 
-            // <<<< BRK ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+                self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize] =
+                    (self.cpu.program_counter >> 8) as u8 & 0xFF;
+                self.cpu.stack_pointer -= 1;
+                self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize] =
+                    (self.cpu.program_counter & 0xFF) as u8;
 
-            // >>>> BVC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+                let lo = self.memory.primary_memory[0xFFFE] as u16;
+                let hi = self.memory.primary_memory[0xFFFF] as u16;
+                self.cpu.program_counter = (hi << 8) | lo;
+
+                self.cpu.status |= 0b0010_0000;
+            }
+
+            // <<<< BRK ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+            // >>>> BVC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x50 => {
                 if self.cpu.status & 0b0100_0000 == 0b0000_0000 {
                     let offset: u16 =
@@ -361,9 +538,9 @@ impl Nes {
                 }
             }
 
-            // <<<< BVC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< BVC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> BVS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> BVS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x70 => {
                 if self.cpu.status & 0b0100_0000 == 0b0100_0000 {
                     let offset: u16 =
@@ -373,40 +550,41 @@ impl Nes {
                 }
             }
 
-            // <<<< BVS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< BVS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> CLC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> CLC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x18 => {
                 self.cpu.status &= 0b1111_1110;
             }
 
-            // <<<< CLC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< CLC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> CLD starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> CLD starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xD8 => {
                 self.cpu.status &= 0b1111_0111;
             }
 
-            // <<<< CLD ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< CLD ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> CLI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> CLI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x58 => {
                 self.cpu.status &= 0b1111_1011;
             }
 
-            // <<<< CLI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< CLI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> CLV starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> CLV starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xB8 => {
                 self.cpu.status &= 0b1011_1111;
             }
 
-            // <<<< CLV ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< CLV ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> CMP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> CMP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xC9 => {
                 // Immediate
-                let result = self.cpu.accumulator - self.immediate();
+                let result =
+                    self.cpu.accumulator - self.memory.primary_memory[self.immediate() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
@@ -468,12 +646,12 @@ impl Nes {
                 self.set_negative_flag(result);
             }
 
-            // <<<< CMP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< CMP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> CPX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> CPX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xE0 => {
                 // Immediate
-                let result = self.cpu.x - self.immediate();
+                let result = self.cpu.x - self.memory.primary_memory[self.immediate() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
@@ -493,12 +671,12 @@ impl Nes {
                 self.set_negative_flag(result);
             }
 
-            // <<<< CPX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< CPX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> CPY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> CPY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xC0 => {
                 // Immediate
-                let result = self.cpu.y - self.immediate();
+                let result = self.cpu.y - self.memory.primary_memory[self.immediate() as usize];
                 self.set_carry_flag(result);
                 self.set_zero_flag(result);
                 self.set_negative_flag(result);
@@ -518,9 +696,9 @@ impl Nes {
                 self.set_negative_flag(result);
             }
 
-            // <<<< CPY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< CPY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> DEC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> DEC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xC6 => {
                 // Zero page
                 let memory_location = self.memory.primary_memory[self.zero_page() as usize];
@@ -550,9 +728,9 @@ impl Nes {
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize]);
             }
 
-            // <<<< DEC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< DEC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> DEX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> DEX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xCA => {
                 // Implied
                 self.cpu.x -= 1;
@@ -560,9 +738,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.x);
             }
 
-            // <<<< DEX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< DEX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> DEY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> DEY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x88 => {
                 // Implied
                 self.cpu.y -= 1;
@@ -570,11 +748,12 @@ impl Nes {
                 self.set_negative_flag(self.cpu.y);
             }
 
-            // <<<< DEY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< DEY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> EOR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> EOR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x49 => {
-                self.cpu.accumulator ^= self.memory.primary_memory[self.immediate() as usize];
+                self.cpu.accumulator ^= self.memory.primary_memory
+                    [self.memory.primary_memory[self.immediate() as usize] as usize];
                 // Immediate
             }
             0x45 => {
@@ -608,9 +787,9 @@ impl Nes {
                 // Indirect, X
             }
 
-            // <<<< EOR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< EOR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> INC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> INC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xE6 => {
                 // Zero page
                 let memory_location = self.memory.primary_memory[self.zero_page() as usize];
@@ -640,9 +819,9 @@ impl Nes {
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize]);
             }
 
-            // <<<< INC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< INC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> INX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> INX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xE8 => {
                 // Implied
                 self.cpu.x += 1;
@@ -650,9 +829,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.x);
             }
 
-            // <<<< INX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< INX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> INY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> INY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xC8 => {
                 // Implied
                 self.cpu.y += 1;
@@ -660,9 +839,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.y);
             }
 
-            // <<<< INY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< INY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> JMP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> JMP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x4C => {
                 // Absolute
                 self.cpu.program_counter += 1;
@@ -676,27 +855,12 @@ impl Nes {
             }
             0x6C => {
                 // Indirect
-                self.cpu.program_counter += 1;
-                let mut lo: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                // one cpu cycle
-                self.cpu.program_counter += 1;
-                let mut hi: u8 = self.memory.primary_memory[self.cpu.program_counter as usize];
-                // one cpu cycle
-                let address: u16 = (hi as u16) << 8 | lo as u16;
-
-                lo = self.memory.primary_memory[address as usize];
-                // one cpu cycle
-
-                hi = self.memory.primary_memory[address as usize + 1];
-                // one cpu cycle
-
-                self.cpu.program_counter = (hi as u16) << 8 | lo as u16 - 1;
-                // To cancel out the final incr
+                self.cpu.program_counter = self.indirect();
             }
 
-            // <<<< JMP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< JMP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> JSR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> JSR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x20 => {
                 // Absolute
                 self.cpu.program_counter += 1;
@@ -719,12 +883,12 @@ impl Nes {
                 self.cpu.program_counter = (hi as u16) << 8 | lo as u16;
             }
 
-            // <<<< JSR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< JSR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> LDA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> LDA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xA9 => {
                 // Immediate
-                self.cpu.accumulator = self.immediate();
+                self.cpu.accumulator = self.memory.primary_memory[self.immediate() as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             }
@@ -771,12 +935,12 @@ impl Nes {
                 self.set_negative_flag(self.cpu.accumulator);
             }
 
-            // <<<< LDA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< LDA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> LDX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> LDX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xA2 => {
                 // Immediate
-                self.cpu.x = self.immediate();
+                self.cpu.x = self.memory.primary_memory[self.immediate() as usize];
                 self.set_zero_flag(self.cpu.x);
                 self.set_negative_flag(self.cpu.x);
             }
@@ -805,12 +969,12 @@ impl Nes {
                 self.set_negative_flag(self.cpu.x);
             }
 
-            // <<<< LDX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< LDX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> LDY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> LDY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xA0 => {
                 // Immediate
-                self.cpu.y = self.immediate();
+                self.cpu.y = self.memory.primary_memory[self.immediate() as usize];
                 self.set_zero_flag(self.cpu.y);
                 self.set_negative_flag(self.cpu.y);
             }
@@ -839,9 +1003,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.y);
             }
 
-            // <<<< LDY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< LDY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> LSR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> LSR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x4A => {
                 // Accumulator
                 self.set_carry_flag(self.cpu.accumulator);
@@ -882,19 +1046,20 @@ impl Nes {
                 self.set_negative_flag(self.memory.primary_memory[memory_location as usize]);
             }
 
-            // <<<< LSR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< LSR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> NOP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> NOP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xEA => {
                 /* No operation */                              // Implied
             }
 
-            // <<<< NOP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< NOP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> ORA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> ORA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x09 => {
                 // Immediate
-                self.cpu.accumulator |= self.memory.primary_memory[self.immediate() as usize];
+                self.cpu.accumulator |= self.memory.primary_memory
+                    [self.memory.primary_memory[self.immediate() as usize] as usize];
                 self.set_zero_flag(self.cpu.accumulator);
                 self.set_negative_flag(self.cpu.accumulator);
             }
@@ -955,9 +1120,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.accumulator);
             }
 
-            // <<<< ORA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< ORA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> PHA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> PHA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x48 => {
                 // Implied
                 self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize] =
@@ -965,9 +1130,9 @@ impl Nes {
                 self.cpu.stack_pointer -= 1;
             }
 
-            // <<<< PHA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< PHA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> PHP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> PHP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x08 => {
                 // Implied
                 self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize] =
@@ -975,9 +1140,9 @@ impl Nes {
                 self.cpu.stack_pointer -= 1;
             }
 
-            // <<<< PHP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< PHP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> PLA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> PLA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x68 => {
                 // Implied
                 self.cpu.stack_pointer += 1;
@@ -987,9 +1152,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.accumulator);
             }
 
-            // <<<< PLA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< PLA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> PLP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> PLP starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x28 => {
                 // Implied
                 self.cpu.stack_pointer += 1;
@@ -997,15 +1162,47 @@ impl Nes {
                     self.memory.primary_memory[0x100 + self.cpu.stack_pointer as usize];
             }
 
-            // <<<< PLP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< PLP ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> ROL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            // <<<< ROL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // >>>> ROL starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            0x2A => {
+                // Accumulator
+            }
+            0x26 => {
+                // Zero page
+            }
+            0x36 => {
+                // Zero page, X
+            }
+            0x2E => {
+                // Absolute
+            }
+            0x3E => {
+                // Absolute, X
+            }
 
-            // >>>> ROR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            // <<<< ROR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< ROL ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> RTI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> ROR starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            0x6A => {
+                // Accumulator
+            }
+            0x66 => {
+                // Zero page
+            }
+            0x76 => {
+                // Zero page, X
+            }
+            0x6E => {
+                // Absolute
+            }
+            0x7E => {
+                // Absolute, X
+            }
+
+            // <<<< ROR ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+            // >>>> RTI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x40 => {
                 // Implied
                 self.cpu.stack_pointer += 1;
@@ -1021,9 +1218,9 @@ impl Nes {
                 self.cpu.program_counter -= 1; // -1 because the pc is incremented outside the switch block
             }
 
-            // <<<< RTI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< RTI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> RTS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> RTS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x60 => {
                 // Implied
                 self.cpu.stack_pointer += 1;
@@ -1036,12 +1233,13 @@ impl Nes {
                 self.cpu.program_counter = (hi as u16) << 8 | lo as u16;
             }
 
-            // <<<< RTS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< RTS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> SBC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> SBC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xE9 => {
                 // Immediate
-                let rhs = self.immediate().wrapping_sub(1 - self.cpu.status & 0x01);
+                let rhs = self.memory.primary_memory[self.immediate() as usize]
+                    .wrapping_sub(1 - self.cpu.status & 0x01);
                 self.cpu.accumulator = self.cpu.accumulator.wrapping_sub(rhs);
                 self.set_carry_flag(self.cpu.accumulator);
                 self.set_zero_flag(self.cpu.accumulator);
@@ -1102,31 +1300,31 @@ impl Nes {
                 self.set_negative_flag(self.cpu.accumulator);
             }
 
-            // <<<< SBC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< SBC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> SEC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> SEC starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x38 => {
                 // Implied
                 self.cpu.status |= 0b0000_0001;
             }
 
-            // <<<< SEC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< SEC ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> SED starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> SED starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xF8 => {
                 self.cpu.status |= 0b0000_1000;
             }
 
-            // <<<< SED ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< SED ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> SEI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> SEI starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x78 => {
                 self.cpu.status |= 0b0000_0100;
             }
 
-            // <<<< SEI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< SEI ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> STA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> STA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x85 => {
                 // Zero page
                 self.memory.primary_memory[self.zero_page() as usize] = self.cpu.accumulator;
@@ -1156,9 +1354,9 @@ impl Nes {
                 self.memory.primary_memory[self.indirect_indexed() as usize] = self.cpu.accumulator;
             }
 
-            // <<<< STA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< STA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> STX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> STX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x86 => {
                 // Zero page
                 self.memory.primary_memory[self.zero_page() as usize] = self.cpu.x;
@@ -1172,9 +1370,9 @@ impl Nes {
                 self.memory.primary_memory[self.absolute() as usize] = self.cpu.x;
             }
 
-            // <<<< STX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< STX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> STY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> STY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x84 => {
                 // Zero page
                 self.memory.primary_memory[self.zero_page() as usize] = self.cpu.y;
@@ -1188,9 +1386,9 @@ impl Nes {
                 self.memory.primary_memory[self.absolute() as usize] = self.cpu.y;
             }
 
-            // <<<< STY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< STY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> TAX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> TAX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xAA => {
                 // Implied
                 self.cpu.x = self.cpu.accumulator;
@@ -1198,9 +1396,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.x);
             }
 
-            // <<<< TAX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< TAX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> TAY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> TAY starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xA8 => {
                 // Implied
                 self.cpu.y = self.cpu.accumulator;
@@ -1208,9 +1406,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.y);
             }
 
-            // <<<< TAY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< TAY ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> TSX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> TSX starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0xBA => {
                 // Implied
                 self.cpu.x = self.cpu.stack_pointer;
@@ -1218,9 +1416,9 @@ impl Nes {
                 self.set_negative_flag(self.cpu.x);
             }
 
-            // <<<< TSX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< TSX ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> TXA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> TXA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x8A => {
                 // Implied
                 self.cpu.accumulator = self.cpu.y;
@@ -1228,17 +1426,17 @@ impl Nes {
                 self.set_negative_flag(self.cpu.accumulator);
             }
 
-            // <<<< TXA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< TXA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> TXS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> TXS starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x9A => {
                 // Implied
                 self.cpu.stack_pointer = self.cpu.x;
             }
 
-            // <<<< TXS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< TXS ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-            // >>>> TYA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // >>>> TYA starts >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             0x98 => {
                 // Implied
                 self.cpu.accumulator = self.cpu.y;
@@ -1246,7 +1444,7 @@ impl Nes {
                 self.set_negative_flag(self.cpu.accumulator);
             }
 
-            // <<<< TYA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // <<<< TYA ends <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             _ => panic!("Unrecognized instruction {:#X}", instruction),
         }
         self.cpu.program_counter += 1; // one cpu cycle
