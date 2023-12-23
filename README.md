@@ -2,7 +2,7 @@
 
 ### _*CHIP8*_:
 
-<img src="./media/c8_demo.png" style="width: 50%;">
+![c8_demo](https://github.com/rumbleFTW/rusty-retro/assets/85807431/05bddfbb-9f5a-4d76-9519-3a924746f290)
 
 [How to run on local machine?](./chip8/CHIP8.md)
 
